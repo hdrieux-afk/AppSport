@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  domain-tests:
+    name: Domaine sur Linux (rapide)
+    runs-on: ubuntu-latest
+    container: swift:5.10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compiler et tester le domaine
+        shell: bash
+        run: |
+          set -o pipefail
+          swift test 2>&1 | tee swift-test.log
+
+      - name: Résumé des erreurs
+        if: failure()
+        shell: bash
+        run: |
+          {
+            echo '### Erreurs du domaine (Linux)'
+            echo '```'
+            grep -E "error:|XCTAssert|failed" swift-test.log | sort -u | head -60 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  app-build:
+    name: App complète sur macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer XcodeGen
+        run: brew install xcodegen
+
+      - name: Générer le projet Xcode
+        run: xcodegen generate
+
+      - name: Choisir un simulateur iPhone
+        id: sim
+        shell: bash
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k,v in d.items() if 'iOS' in k for x in v if 'iPhone' in x['name']))")
+          echo "id=$DEVICE_ID" >> "$GITHUB_OUTPUT"
+          echo "Simulateur retenu : $DEVICE_ID"
+
+      - name: Compiler l'app
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild build -project AppSport.xcodeproj -scheme AppSport \
+            -destination "id=${{ steps.sim.outputs.id }}" \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO 2>&1 | tee build.log
+
+      - name: Lancer les tests
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild test -project AppSport.xcodeproj -scheme AppSport \
+            -destination "id=${{ steps.sim.outputs.id }}" \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO 2>&1 | tee test.log
+
+      - name: Captures d'écran de l'app
+        if: success()
+        continue-on-error: true
+        shell: bash
+        run: |
+          mkdir -p screenshots
+          ID="${{ steps.sim.outputs.id }}"
+          APP=build/Build/Products/Debug-iphonesimulator/AppSport.app
+          xcrun simctl boot "$ID" || true
+          xcrun simctl bootstatus "$ID" -b
+          xcrun simctl install "$ID" "$APP"
+          shot() {
+            xcrun simctl launch "$ID" com.example.appsport "${@:2}"
+            sleep 6
+            xcrun simctl io "$ID" screenshot "screenshots/$1.png"
+            xcrun simctl terminate "$ID" com.example.appsport || true
+          }
+          shot 1_onboarding
+          shot 2_aujourdhui -selectedTab 0 -demo YES
+          shot 3_plan -selectedTab 1
+          shot 4_profil -selectedTab 2
+
+      - name: Résumé des erreurs
+        if: failure()
+        shell: bash
+        run: |
+          {
+            echo '### Erreurs de compilation ou de test'
+            echo '```'
+            grep -hE "error:|Test Case .* failed|XCTAssert" build.log test.log 2>/dev/null | sort -u | head -80 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publier les captures d'écran
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: captures-ecran
+          path: screenshots
+          if-no-files-found: ignore
