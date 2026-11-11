@@ -1,0 +1,50 @@
+name: AppSport
+options:
+  bundleIdPrefix: com.example
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  AppSport:
+    type: application
+    platform: iOS
+    sources:
+      - App
+      - Design
+      - Domain
+      - Persistence
+      - Store
+      - Views
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.appsport
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: App Sport
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
+        TARGETED_DEVICE_FAMILY: "1"
+  AppSportTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - Tests
+    dependencies:
+      - target: AppSport
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.appsport.tests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  AppSport:
+    build:
+      targets:
+        AppSport: all
+        AppSportTests: [test]
+    test:
+      targets:
+        - AppSportTests
