@@ -143,6 +143,21 @@ struct SessionDetailView: View {
     /// Le fichier .fit est régénéré à chaque modification : la tâche se relance quand la révision change.
     private func exportBlock(_ session: TrainingSession, _ workout: EnduranceWorkout) -> some View {
         VStack(alignment: .leading, spacing: DSSpace.s) {
+            if store.watchConnected {
+                Button(session.intervalsEventID == nil ? "Envoyer vers la montre" : "Mettre à jour sur la montre") {
+                    Task { await store.sendToWatch(session.id) }
+                }
+                .buttonStyle(.dsSecondary)
+                .disabled(store.watchBusy)
+                if session.intervalsEventID != nil {
+                    Text("Séance envoyée à intervals.icu.").ds(.footnote)
+                }
+                if let message = store.watchMessage {
+                    Text(message).ds(.footnote)
+                }
+            } else {
+                Text("Pour envoyer sans câble, connectez la montre dans l’onglet Profil.").ds(.footnote)
+            }
             if let url = fitURL {
                 ShareLink(item: url) {
                     DSOutlineLabel(text: "Exporter le fichier .fit", icon: "square.and.arrow.up")

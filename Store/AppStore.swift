@@ -29,6 +29,12 @@ final class AppStore {
     var draft: DraftPlan?
     var isLoaded = false
 
+    // Envoi vers la montre (intervals.icu)
+    var watchAthleteID = ""
+    var watchConnected = false
+    var watchBusy = false
+    var watchMessage: String?
+
     /// Dernières réponses de l'onboarding : elles préremplissent le formulaire si on revient en arrière.
     var lastProfile: AthleteProfile?
     var lastConstraints: PlanConstraints?
@@ -55,6 +61,7 @@ final class AppStore {
             startDate = existing.startDate
         }
         applyLaunchArguments()
+        refreshWatchState()
         isLoaded = true
     }
 
@@ -173,14 +180,22 @@ final class AppStore {
 
     func modify(_ id: UUID, durationMin: Int, level: Level) {
         mutate(id) { $0.modify(durationMin: durationMin, level: level) }
+        watchRefresh(id)
     }
 
     func changeSport(_ id: UUID, to kind: SessionKind) {
         mutate(id) { $0.changeSport(to: kind) }
+        watchRefresh(id)
     }
 
     func cancel(_ id: UUID) {
         mutate(id) { $0.cancel() }
+        watchRefresh(id)
+    }
+
+    /// Mémorise (ou efface) l'identifiant de la séance dans intervals.icu.
+    func setEventID(_ eventID: Int?, for id: UUID) {
+        mutate(id) { $0.intervalsEventID = eventID }
     }
 
     func setDone(_ id: UUID, _ done: Bool) {
@@ -196,6 +211,7 @@ final class AppStore {
             weeks[w].sessions.sort { $0.date < $1.date }
         }
         save()
+        watchRefresh(id)
     }
 
     /// Problèmes de placement qu'un déplacement créerait, pour prévenir l'utilisateur sans l'empêcher.
@@ -247,7 +263,7 @@ final class AppStore {
     // MARK: - Interne
 
     /// Applique un changement à une séance, où qu'elle soit dans le plan, puis sauvegarde.
-    private func mutate(_ id: UUID, _ change: (inout TrainingSession) -> Void) {
+    func mutate(_ id: UUID, _ change: (inout TrainingSession) -> Void) {
         for w in weeks.indices {
             if let s = weeks[w].sessions.firstIndex(where: { $0.id == id }) {
                 change(&weeks[w].sessions[s])

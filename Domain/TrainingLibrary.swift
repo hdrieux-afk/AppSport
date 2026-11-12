@@ -466,9 +466,10 @@ struct TrainingSession: Identifiable, Codable {
     var isLocked = false        // modifiée à la main : jamais écrasée par une régénération du plan
     var fitRevision = 0         // incrémentée à chaque changement qui touche le fichier
     var isDone = false          // séance marquée comme faite par l'utilisateur
+    var intervalsEventID: Int? = nil   // événement correspondant dans intervals.icu, une fois la séance envoyée
 
     enum CodingKeys: String, CodingKey {
-        case id, date, kind, variant, durationMin, level, status, isLocked, fitRevision, isDone
+        case id, date, kind, variant, durationMin, level, status, isLocked, fitRevision, isDone, intervalsEventID
     }
 
     var isExportable: Bool { kind.sport != .strength && status != .cancelled }
@@ -561,6 +562,7 @@ extension TrainingSession {
         isLocked = try c.decodeIfPresent(Bool.self, forKey: .isLocked) ?? false
         fitRevision = try c.decodeIfPresent(Int.self, forKey: .fitRevision) ?? 0
         isDone = try c.decodeIfPresent(Bool.self, forKey: .isDone) ?? false
+        intervalsEventID = try c.decodeIfPresent(Int.self, forKey: .intervalsEventID)
     }
 }
 

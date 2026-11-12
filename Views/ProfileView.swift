@@ -7,6 +7,7 @@ struct ProfileView: View {
     @Environment(AppStore.self) private var store
     @State private var confirmReset = false
     @State private var showEdit = false
+    @State private var showWatch = false
 
     var body: some View {
         ScrollView {
@@ -44,6 +45,16 @@ struct ProfileView: View {
                     }
                 }
 
+                block("Montre") {
+                    DSLabeledRow(label: "Envoi sans câble",
+                                 value: store.watchConnected ? "intervals.icu connecté" : "Non connecté")
+                    Button(store.watchConnected ? "Gérer l’envoi vers la montre" : "Connecter la montre") {
+                        showWatch = true
+                    }
+                    .buttonStyle(.dsSecondary)
+                    .padding(.top, DSSpace.m)
+                }
+
                 VStack(spacing: DSSpace.s) {
                     Button("Modifier le profil et l’objectif") { showEdit = true }
                         .buttonStyle(.dsSecondary)
@@ -61,6 +72,7 @@ struct ProfileView: View {
                 EditProfileSheet(profile: p, goal: store.goal)
             }
         }
+        .sheet(isPresented: $showWatch) { WatchConnectionSheet() }
         .confirmationDialog("Effacer le plan et recommencer ?", isPresented: $confirmReset, titleVisibility: .visible) {
             Button("Effacer le plan", role: .destructive) { store.reset() }
             Button("Annuler", role: .cancel) {}
