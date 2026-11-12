@@ -34,8 +34,13 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   app-build:
-    name: App complète sur macOS
-    runs-on: macos-latest
+    name: App complète sur macOS (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false         # un type de Mac en panne de capacité n'arrête pas l'autre
+      matrix:
+        os: [macos-15, macos-15-intel]
     steps:
       - uses: actions/checkout@v4
 
@@ -54,6 +59,7 @@ jobs:
           echo "Simulateur retenu : $DEVICE_ID"
 
       - name: Compiler l'app
+        id: build
         shell: bash
         run: |
           set -o pipefail
@@ -70,7 +76,7 @@ jobs:
             -derivedDataPath build CODE_SIGNING_ALLOWED=NO 2>&1 | tee test.log
 
       - name: Captures d'écran de l'app
-        if: success()
+        if: ${{ always() && steps.build.outcome == 'success' }}
         continue-on-error: true
         shell: bash
         run: |
@@ -81,24 +87,52 @@ jobs:
           xcrun simctl bootstatus "$ID" -b
           xcrun simctl install "$ID" "$APP"
           shot() {
-            xcrun simctl launch "$ID" com.example.appsport "${@:2}"
+            xcrun simctl launch "$ID" io.github.hdrieuxafk.appsport "${@:2}"
             sleep 6
             xcrun simctl io "$ID" screenshot "screenshots/$1.png"
-            xcrun simctl terminate "$ID" com.example.appsport || true
+            xcrun simctl terminate "$ID" io.github.hdrieuxafk.appsport || true
           }
           shot 1_onboarding
+          shot 1b_plan_propose -demoDraft YES
           shot 2_aujourdhui -selectedTab 0 -demo YES
           shot 3_plan -selectedTab 1
           shot 4_profil -selectedTab 2
+          for p in 0 1 2; do shot "5_guide_clair_$p" -styleguide YES -guidePage $p; done
+          xcrun simctl ui "$ID" appearance dark
+          for p in 0 1 2; do shot "6_guide_sombre_$p" -styleguide YES -guidePage $p; done
+          xcrun simctl ui "$ID" appearance light
+
+      - name: Construire le fichier à installer sur iPhone (IPA non signé)
+        id: ipa
+        if: ${{ always() && steps.build.outcome == 'success' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild archive -project AppSport.xcodeproj -scheme AppSport \
+            -destination "generic/platform=iOS" \
+            -archivePath build/AppSport.xcarchive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" 2>&1 | tee archive.log
+          mkdir -p ipa/Payload
+          cp -R build/AppSport.xcarchive/Products/Applications/AppSport.app ipa/Payload/
+          (cd ipa && zip -qry AppSport.ipa Payload)
+          ls -la ipa
+
+      - name: Publier l'IPA
+        if: ${{ always() && steps.ipa.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: AppSport-ipa-${{ matrix.os }}
+          path: ipa/AppSport.ipa
 
       - name: Résumé des erreurs
-        if: failure()
+        if: ${{ failure() || steps.ipa.outcome == 'failure' }}
         shell: bash
         run: |
           {
-            echo '### Erreurs de compilation ou de test'
+            echo '### Erreurs de compilation, de test ou de fabrication de l'\''IPA'
             echo '```'
-            grep -hE "error:|Test Case .* failed|XCTAssert" build.log test.log 2>/dev/null | sort -u | head -80 || true
+            grep -hE "error:|Test Case .* failed|XCTAssert" build.log test.log archive.log 2>/dev/null | sort -u | head -80 || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -106,6 +140,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: captures-ecran
+          name: captures-ecran-${{ matrix.os }}
           path: screenshots
           if-no-files-found: ignore
