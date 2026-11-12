@@ -53,6 +53,16 @@ enum RaceDistance: String, Codable, CaseIterable {
     }
 
     var taperWeeks: Int { (self == .half || self == .marathon) ? 2 : 1 }
+
+    /// Durée de sortie longue visée au pic du plan (minutes). Valeurs indicatives, à valider avec un coach.
+    var peakLongRunMinutes: Int {
+        switch self {
+        case .fiveK: return 75
+        case .tenK: return 90
+        case .half: return 120
+        case .marathon: return 150
+        }
+    }
 }
 
 struct RaceGoal: Codable {
@@ -92,6 +102,8 @@ struct PlanConstraints: Codable {
     var strengthVenue: Venue = .home
     var unavailableWeekdays: Set<Int> = []      // 0 = lundi ... 6 = dimanche
     var goal: RaceGoal? = nil
+    var currentLongRunMinutes: Int = 60         // sortie de course la plus longue de ces 4 dernières semaines
+    var layoutSeed: Int = 0                     // fait varier la disposition proposée (bouton "Régénérer")
 
     var total: Int { runs + bikes + strengths }
     var availableDays: [Int] { (0..<7).filter { !unavailableWeekdays.contains($0) } }
@@ -108,6 +120,10 @@ struct PlanConstraints: Codable {
         if runs < goal.distance.minRunsPerWeek {
             out.append("Moins de \(goal.distance.minRunsPerWeek) séances de course par semaine pour cette distance.")
         }
+        let start = PlanGenerator.nextMonday(from: now, calendar: calendar)
+        if PlanGenerator.timeline(for: self, start: start, calendar: calendar).peakCapped {
+            out.append("Votre volume actuel ne permet pas d'atteindre la sortie longue visée sans dépasser 10 % de hausse par semaine : le plan montera aussi haut que possible.")
+        }
         return out
     }
 }
@@ -120,6 +136,60 @@ struct PlanTimeline {
     let totalWeeks: Int
     let taperWeeks: Int
     let hasGoal: Bool
+    /// Durée visée de la sortie longue chaque semaine : elle pilote tout le volume de la semaine.
+    let longRunMinutes: [Int]
+    let deloadWeeks: Set<Int>
+    /// Vrai si la hausse limitée à 10 % par semaine ne permet pas d'atteindre le pic visé.
+    let peakCapped: Bool
+
+    /// Sortie longue de référence sur laquelle sont calées les durées de base des séances.
+    static let referenceLongRun = 80.0
+    static let maxWeeklyGrowth = 1.10
+
+    /// Construit la progression : on part du volume actuel et on monte vers le pic de la distance visée,
+    /// avec au plus 10 % de hausse d'une semaine de montée à l'autre.
+    static func make(totalWeeks: Int, taperWeeks: Int, hasGoal: Bool,
+                     startLongRun: Int, peakLongRun: Int) -> PlanTimeline {
+        let start = Double(min(max(startLongRun, 30), 180))
+        let peak = max(Double(min(max(peakLongRun, 30), 180)), start)
+        let body = hasGoal ? max(totalWeeks - taperWeeks, 0) : totalWeeks
+
+        // Une semaine de décharge toutes les 4 semaines, jamais dans les 2 dernières semaines avant l'affûtage.
+        var deloads = Set<Int>()
+        for w in 0..<body where (w + 1) % 4 == 0 {
+            if hasGoal && w >= body - 2 { continue }
+            deloads.insert(w)
+        }
+
+        let buildCount = body - deloads.count
+        var values = [Double](repeating: start, count: max(totalWeeks, 0))
+        var previous = start
+        var capped = false
+        var k = 0
+        for w in 0..<body {
+            if deloads.contains(w) {
+                values[w] = previous * 0.75
+            } else {
+                let target = start + (peak - start) * Double(k) / Double(max(buildCount - 1, 1))
+                let value = (k == 0) ? start : min(target, previous * maxWeeklyGrowth)
+                values[w] = value
+                previous = value
+                if k == buildCount - 1 && value < peak - 0.5 { capped = true }
+                k += 1
+            }
+        }
+
+        // Affûtage : volume réduit à partir du dernier niveau atteint.
+        if hasGoal && taperWeeks > 0 {
+            for t in 0..<taperWeeks where body + t < totalWeeks {
+                values[body + t] = previous * (t == taperWeeks - 1 ? 0.55 : 0.75)
+            }
+        }
+
+        return PlanTimeline(totalWeeks: totalWeeks, taperWeeks: taperWeeks, hasGoal: hasGoal,
+                            longRunMinutes: values.map { Int($0.rounded()) },
+                            deloadWeeks: deloads, peakCapped: capped)
+    }
 
     func phase(of week: Int) -> PlanPhase {
         // Sans objectif : blocs de 4 semaines, 2 semaines de base puis 2 de développement.
@@ -133,14 +203,10 @@ struct PlanTimeline {
         return .development
     }
 
-    /// Cycles de 3 semaines croissantes puis 1 de décharge. Affûtage réduit.
+    /// Facteur appliqué aux durées de base : sortie longue de la semaine divisée par la référence.
     func volumeFactor(of week: Int) -> Double {
-        if hasGoal, phase(of: week) == .taper {
-            let idx = week - (totalWeeks - taperWeeks)      // 0 = première semaine d'affûtage
-            return idx == taperWeeks - 1 ? 0.55 : 0.75
-        }
-        let pos = week % 4
-        return pos == 3 ? 0.75 : 1.0 + 0.08 * Double(pos)
+        guard longRunMinutes.indices.contains(week) else { return 1.0 }
+        return Double(longRunMinutes[week]) / PlanTimeline.referenceLongRun
     }
 }
 
@@ -181,7 +247,8 @@ enum PlanComposer {
     }
 
     /// Créneaux par ordre de priorité : si la place manque, les derniers sautent.
-    static func slots(for c: PlanConstraints, phase: PlanPhase, week: Int, goal: RaceGoal?) -> [SessionSlot] {
+    static func slots(for c: PlanConstraints, phase: PlanPhase, week: Int, goal: RaceGoal?,
+                      seed: Int = 0) -> [SessionSlot] {
         var out: [SessionSlot] = []
 
         // Course : 1 fractionné, 1 sortie longue, puis endurance. 2e fractionné en développement dès 4 séances.
@@ -199,10 +266,10 @@ enum PlanComposer {
         }
         for t in run {
             var variant: RunVariant? = nil
-            if t == .shortIntervals { variant = shortVariants[week % 3] }
+            if t == .shortIntervals { variant = shortVariants[(week + seed) % 3] }
             if t == .longIntervals {
                 let useRacePace = (phase == .specific && goal?.targetSeconds != nil)
-                variant = useRacePace ? RunVariant.racePace : longVariants[week % 3]
+                variant = useRacePace ? RunVariant.racePace : longVariants[(week + seed) % 3]
             }
             out.append(SessionSlot(kind: .run(t), variant: variant, baseDuration: baseDuration(t)))
         }
@@ -217,7 +284,7 @@ enum PlanComposer {
         switch c.strengths {
         case 0: focuses = []
         case 1: focuses = [.fullBody]
-        case 2: focuses = [.legs, (week % 2 == 0) ? StrengthFocus.push : StrengthFocus.pull]
+        case 2: focuses = [.legs, ((week + seed) % 2 == 0) ? StrengthFocus.push : StrengthFocus.pull]
         case 3: focuses = [.legs, .push, .pull]
         default: focuses = [.legs, .push, .pull] + Array(repeating: StrengthFocus.fullBody, count: c.strengths - 3)
         }
@@ -253,7 +320,7 @@ enum PlanPlacer {
                 let gap = abs(a.day - b.day)
                 let d = min(gap, 7 - gap)
                 if d == 1 { p += 2 }                                         // espacer les séances
-                if d == 1, a.slot.isHard, b.slot.isHard { p += 100 }         // jamais deux séances dures d'affilée
+                if d == 1, a.slot.isHard, b.slot.isHard { p += 1000 }        // jamais deux séances dures d'affilée (contrainte absolue)
                 let legsNearHard = (a.slot.isStrengthLegHeavy && b.slot.isHard)
                     || (b.slot.isStrengthLegHeavy && a.slot.isHard)
                 if d <= 1, legsNearHard { p += 60 }                          // muscu jambes à 48 h d'une séance clé
@@ -265,21 +332,24 @@ enum PlanPlacer {
         return p
     }
 
-    /// Teste tous les placements possibles (5 040 au maximum pour 7 jours) et garde le meilleur.
-    static func place(_ slots: [SessionSlot], fixed: [PlacedSlot] = [], freeDays: [Int]) -> [PlacedSlot] {
+    /// Teste tous les placements possibles (5 040 au maximum pour 7 jours), les classe par note, puis en choisit un.
+    /// seed = 0 donne le meilleur placement ; une graine plus grande donne une autre disposition presque aussi
+    /// bonne (10 points d'écart au plus), ce qui alimente le bouton "Régénérer".
+    static func place(_ slots: [SessionSlot], fixed: [PlacedSlot] = [], freeDays: [Int],
+                      seed: Int = 0) -> [PlacedSlot] {
         guard !slots.isEmpty, slots.count <= freeDays.count else { return [] }
-        var best: [PlacedSlot] = []
-        var bestScore = Int.max
+        var candidates: [(score: Int, placement: [PlacedSlot])] = []
+        var bestSeen = Int.max
         var current: [PlacedSlot] = []
         var used = Set<Int>()
 
         func search(_ i: Int) {
             if i == slots.count {
                 let score = penalty(fixed + current)
-                if score < bestScore {
-                    bestScore = score
-                    best = current
+                if bestSeen == Int.max || score <= bestSeen + 10 {
+                    candidates.append((score: score, placement: current))
                 }
+                if score < bestSeen { bestSeen = score }
                 return
             }
             for day in freeDays where !used.contains(day) {
@@ -291,7 +361,24 @@ enum PlanPlacer {
             }
         }
         search(0)
-        return best
+
+        guard let best = candidates.map({ $0.score }).min() else { return [] }
+
+        // Les placements qui ne diffèrent que par l'échange de deux séances identiques comptent pour un seul.
+        var seen = Set<String>()
+        var near: [(score: Int, key: String, placement: [PlacedSlot])] = []
+        for c in candidates where c.score <= best + 10 {
+            let key = c.placement
+                .sorted { $0.day < $1.day }
+                .map { "\($0.day):\($0.slot.kind)" }
+                .joined(separator: "|")
+            if seen.insert(key).inserted {
+                near.append((score: c.score, key: key, placement: c.placement))
+            }
+        }
+        near.sort { ($0.score, $0.key) < ($1.score, $1.key) }
+        guard !near.isEmpty else { return [] }
+        return near[((seed % near.count) + near.count) % near.count].placement
     }
 }
 
@@ -313,10 +400,15 @@ enum PlanGenerator {
     }
 
     static func timeline(for c: PlanConstraints, start: Date, calendar: Calendar = .current) -> PlanTimeline {
-        guard let goal = c.goal else { return PlanTimeline(totalWeeks: 4, taperWeeks: 0, hasGoal: false) }
+        let startLongRun = max(30, c.currentLongRunMinutes)
+        guard let goal = c.goal else {
+            return PlanTimeline.make(totalWeeks: 4, taperWeeks: 0, hasGoal: false, startLongRun: startLongRun,
+                                     peakLongRun: Int((Double(startLongRun) * 1.2).rounded()))
+        }
         let days = calendar.dateComponents([.day], from: start, to: goal.date).day ?? 0
         let weeks = min(max((days + 6) / 7, 1), 24)
-        return PlanTimeline(totalWeeks: weeks, taperWeeks: goal.distance.taperWeeks, hasGoal: true)
+        return PlanTimeline.make(totalWeeks: weeks, taperWeeks: goal.distance.taperWeeks, hasGoal: true,
+                                 startLongRun: startLongRun, peakLongRun: goal.distance.peakLongRunMinutes)
     }
 
     static func generatePlan(constraints c: PlanConstraints, start: Date,
@@ -324,7 +416,8 @@ enum PlanGenerator {
         let tl = timeline(for: c, start: start, calendar: calendar)
         return (0..<tl.totalWeeks).map { w in
             let weekStart = calendar.date(byAdding: .weekOfYear, value: w, to: start) ?? start
-            return generateWeek(week: w, weekStart: weekStart, constraints: c, timeline: tl, calendar: calendar)
+            return generateWeek(week: w, weekStart: weekStart, constraints: c, timeline: tl,
+                                seed: c.layoutSeed, calendar: calendar)
         }
     }
 
@@ -332,9 +425,9 @@ enum PlanGenerator {
     /// une régénération ne refait que le reste de la semaine.
     static func generateWeek(week: Int, weekStart: Date, constraints c: PlanConstraints,
                              timeline tl: PlanTimeline, locked: [TrainingSession] = [],
-                             calendar: Calendar = .current) -> PlannedWeek {
+                             seed: Int = 0, calendar: Calendar = .current) -> PlannedWeek {
         let phase = tl.phase(of: week)
-        var slots = PlanComposer.slots(for: c, phase: phase, week: week, goal: c.goal)
+        var slots = PlanComposer.slots(for: c, phase: phase, week: week, goal: c.goal, seed: seed)
 
         func dayIndex(of s: TrainingSession) -> Int {
             let d = calendar.dateComponents([.day], from: weekStart, to: s.date).day ?? 0
@@ -355,12 +448,49 @@ enum PlanGenerator {
         slots = Array(slots.prefix(freeDays.count))
 
         let factor = tl.volumeFactor(of: week)
-        let created = PlanPlacer.place(slots, fixed: fixed, freeDays: freeDays).map { p -> TrainingSession in
+        let created = PlanPlacer.place(slots, fixed: fixed, freeDays: freeDays, seed: seed).map { p -> TrainingSession in
             let date = calendar.date(byAdding: .day, value: p.day, to: weekStart) ?? weekStart
             return TrainingSession(date: date, kind: p.slot.kind, variant: p.slot.variant,
                                    durationMin: PlanComposer.duration(p.slot, factor: factor))
         }
         return PlannedWeek(index: week, phase: phase, sessions: (locked + created).sorted { $0.date < $1.date })
+    }
+}
+
+// MARK: - Vérifications d'une semaine
+
+enum PlanIssue: Equatable {
+    case consecutiveHardSessions      // deux séances dures le même jour ou deux jours de suite
+    case legsNearKeySession           // muscu jambes à moins de 48 h d'une séance clé
+}
+
+enum PlanChecks {
+    /// Problèmes de placement dans une semaine, sans texte d'interface (le texte vit dans la couche présentation).
+    static func issues(in sessions: [TrainingSession], weekStart: Date,
+                       calendar: Calendar = .current) -> [PlanIssue] {
+        let active = sessions.filter { $0.status != .cancelled }
+
+        func day(_ s: TrainingSession) -> Int {
+            let d = calendar.dateComponents([.day], from: weekStart, to: s.date).day ?? 0
+            return min(max(d, 0), 6)
+        }
+
+        var found: [PlanIssue] = []
+        for i in 0..<active.count {
+            for j in (i + 1)..<active.count {
+                guard abs(day(active[i]) - day(active[j])) <= 1 else { continue }
+                let a = SessionSlot(kind: active[i].kind, baseDuration: active[i].durationMin)
+                let b = SessionSlot(kind: active[j].kind, baseDuration: active[j].durationMin)
+                if a.isHard && b.isHard && !found.contains(.consecutiveHardSessions) {
+                    found.append(.consecutiveHardSessions)
+                }
+                let legsNearHard = (a.isStrengthLegHeavy && b.isHard) || (b.isStrengthLegHeavy && a.isHard)
+                if legsNearHard && !found.contains(.legsNearKeySession) {
+                    found.append(.legsNearKeySession)
+                }
+            }
+        }
+        return found
     }
 }
 

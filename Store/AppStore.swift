@@ -1,13 +1,22 @@
 // AppStore.swift
 // Le "cerveau" de l'app côté interface : il garde le plan en mémoire, expose les actions de l'utilisateur
-// (créer, modifier, changer de sport, annuler, régénérer) et sauvegarde après chaque changement.
+// (proposer, valider, modifier, changer de sport, déplacer, annuler, marquer faite, régénérer)
+// et sauvegarde après chaque changement.
 //
 // Les vues lisent cet objet et se redessinent toutes seules quand il change (macro @Observable, iOS 17).
-// Les règles elles-mêmes (durées, équivalences, placement) restent dans le domaine.
+// Les règles elles-mêmes (durées, équivalences, placement, vérifications) restent dans le domaine.
 
 import Foundation
 import SwiftData
 import Observation
+
+/// Plan proposé à l'utilisateur : il n'existe qu'en mémoire tant qu'il n'a pas été validé.
+struct DraftPlan {
+    var profile: AthleteProfile
+    var constraints: PlanConstraints
+    var startDate: Date
+    var weeks: [PlannedWeek]
+}
 
 @Observable
 final class AppStore {
@@ -17,7 +26,12 @@ final class AppStore {
     var constraints: PlanConstraints?
     var startDate: Date = Date()
     var weeks: [PlannedWeek] = []
+    var draft: DraftPlan?
     var isLoaded = false
+
+    /// Dernières réponses de l'onboarding : elles préremplissent le formulaire si on revient en arrière.
+    var lastProfile: AthleteProfile?
+    var lastConstraints: PlanConstraints?
 
     // Détails internes, ignorés par l'observation
     @ObservationIgnored private var context: ModelContext?
@@ -43,36 +57,79 @@ final class AppStore {
         isLoaded = true
     }
 
-    // MARK: - Création et régénération
+    // MARK: - Proposition de plan, puis validation
 
-    /// Génère un plan à partir du profil et des contraintes saisis à l'onboarding.
-    func createPlan(profile: AthleteProfile, constraints: PlanConstraints) {
-        self.profile = profile
-        self.constraints = constraints
-        startDate = PlanGenerator.nextMonday(from: Date())
-        weeks = PlanGenerator.generatePlan(constraints: constraints, start: startDate)
+    /// Génère un plan à partir de l'onboarding. Il reste un brouillon tant que l'utilisateur ne le valide pas.
+    func createDraft(profile: AthleteProfile, constraints: PlanConstraints) {
+        lastProfile = profile
+        lastConstraints = constraints
+        let start = PlanGenerator.nextMonday(from: Date())
+        draft = DraftPlan(profile: profile, constraints: constraints, startDate: start,
+                          weeks: PlanGenerator.generatePlan(constraints: constraints, start: start))
+    }
+
+    /// Propose une autre disposition (jours, variantes de séances) sans changer les contraintes.
+    func regenerateDraft() {
+        guard var current = draft else { return }
+        current.constraints.layoutSeed += 1
+        current.weeks = PlanGenerator.generatePlan(constraints: current.constraints, start: current.startDate)
+        draft = current
+    }
+
+    /// Valide le brouillon : il devient le plan de l'app et il est sauvegardé.
+    func confirmDraft() {
+        guard let current = draft else { return }
+        profile = current.profile
+        constraints = current.constraints
+        startDate = current.startDate
+        weeks = current.weeks
+        draft = nil
         save()
     }
 
-    /// Plan d'exemple, utilisé par l'intégration continue pour produire des captures d'écran
-    /// (l'app est lancée avec l'argument -demo).
-    func createDemoPlan() {
-        let raceDate = Calendar.current.date(byAdding: .weekOfYear, value: 9, to: Date()) ?? Date()
-        let goal = RaceGoal(distance: .tenK, date: raceDate, targetSeconds: 45 * 60)
-        createPlan(profile: AthleteProfile(vmaKmh: 15, maxHR: 190, hasBand: true),
-                   constraints: PlanConstraints(runs: 3, bikes: 1, strengths: 1,
-                                                strengthVenue: .home, goal: goal))
+    /// Revient à l'onboarding (les réponses restent préremplies).
+    func discardDraft() {
+        draft = nil
     }
 
-    /// Régénère une semaine : les séances verrouillées (modifiées à la main) sont conservées.
+    /// Création directe, sans passer par la proposition (mode démo).
+    func createPlan(profile: AthleteProfile, constraints: PlanConstraints) {
+        createDraft(profile: profile, constraints: constraints)
+        confirmDraft()
+    }
+
+    // MARK: - Modes démo (captures d'écran de l'intégration continue)
+
+    private func demoInputs() -> (AthleteProfile, PlanConstraints) {
+        let raceDate = Calendar.current.date(byAdding: .weekOfYear, value: 9, to: Date()) ?? Date()
+        let goal = RaceGoal(distance: .tenK, date: raceDate, targetSeconds: 45 * 60)
+        return (AthleteProfile(vmaKmh: 15, maxHR: 190, hasBand: true),
+                PlanConstraints(runs: 3, bikes: 1, strengths: 1, strengthVenue: .home,
+                                goal: goal, currentLongRunMinutes: 60))
+    }
+
+    /// Lancement avec l'argument -demo : plan d'exemple déjà validé.
+    func createDemoPlan() {
+        let (p, c) = demoInputs()
+        createPlan(profile: p, constraints: c)
+    }
+
+    /// Lancement avec l'argument -demoDraft : plan d'exemple en attente de validation.
+    func createDemoDraft() {
+        let (p, c) = demoInputs()
+        createDraft(profile: p, constraints: c)
+    }
+
+    // MARK: - Régénération d'une semaine
+
+    /// Régénère une semaine : les séances verrouillées ou faites sont conservées.
     func regenerateWeek(_ index: Int) {
         guard let constraints = constraints, weeks.indices.contains(index) else { return }
         let timeline = PlanGenerator.timeline(for: constraints, start: startDate)
-        let weekStart = Calendar.current.date(byAdding: .weekOfYear, value: index, to: startDate) ?? startDate
-        let locked = weeks[index].sessions.filter { $0.isLocked }
-        weeks[index] = PlanGenerator.generateWeek(week: index, weekStart: weekStart,
+        let kept = weeks[index].sessions.filter { $0.isLocked || $0.isDone }
+        weeks[index] = PlanGenerator.generateWeek(week: index, weekStart: weekStart(index: index),
                                                   constraints: constraints, timeline: timeline,
-                                                  locked: locked)
+                                                  locked: kept, seed: Int.random(in: 1...1000))
         save()
     }
 
@@ -94,12 +151,35 @@ final class AppStore {
         mutate(id) { $0.cancel() }
     }
 
+    func setDone(_ id: UUID, _ done: Bool) {
+        mutate(id) { $0.setDone(done) }
+    }
+
+    /// Déplace une séance sur un autre jour de la même semaine (0 = lundi ... 6 = dimanche).
+    func move(_ id: UUID, toDay day: Int) {
+        guard let start = weekStart(of: id) else { return }
+        let date = Calendar.current.date(byAdding: .day, value: day, to: start) ?? start
+        mutate(id) { $0.move(to: date) }
+        for w in weeks.indices {
+            weeks[w].sessions.sort { $0.date < $1.date }
+        }
+        save()
+    }
+
+    /// Problèmes de placement qu'un déplacement créerait, pour prévenir l'utilisateur sans l'empêcher.
+    func issuesAfterMoving(_ id: UUID, toDay day: Int) -> [PlanIssue] {
+        guard let w = weeks.firstIndex(where: { week in week.sessions.contains { $0.id == id } }) else { return [] }
+        let start = weekStart(index: w)
+        var sessions = weeks[w].sessions
+        guard let s = sessions.firstIndex(where: { $0.id == id }) else { return [] }
+        sessions[s].date = Calendar.current.date(byAdding: .day, value: day, to: start) ?? start
+        return PlanChecks.issues(in: sessions, weekStart: start)
+    }
+
     /// Ajoute une séance sur un jour de repos. Elle est verrouillée d'emblée.
     func addSession(weekIndex: Int, day: Int, kind: SessionKind) {
         guard weeks.indices.contains(weekIndex) else { return }
-        let calendar = Calendar.current
-        let weekStart = calendar.date(byAdding: .weekOfYear, value: weekIndex, to: startDate) ?? startDate
-        let date = calendar.date(byAdding: .day, value: day, to: weekStart) ?? weekStart
+        let date = Calendar.current.date(byAdding: .day, value: day, to: weekStart(index: weekIndex)) ?? startDate
 
         var session = TrainingSession(date: date, kind: kind, durationMin: kind.defaultDuration)
         session.status = .modified
@@ -118,6 +198,18 @@ final class AppStore {
         weeks = []
         profile = nil
         constraints = nil
+        draft = nil
+    }
+
+    // MARK: - Dates
+
+    func weekStart(index: Int) -> Date {
+        Calendar.current.date(byAdding: .weekOfYear, value: index, to: startDate) ?? startDate
+    }
+
+    func weekStart(of id: UUID) -> Date? {
+        guard let w = weeks.firstIndex(where: { week in week.sessions.contains { $0.id == id } }) else { return nil }
+        return weekStart(index: w)
     }
 
     // MARK: - Interne

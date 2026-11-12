@@ -87,10 +87,10 @@ enum RunSessionType: String, Codable, CaseIterable {
 
     var durationRange: ClosedRange<Int> {
         switch self {
-        case .easyRun: return 30...75
+        case .easyRun: return 20...75
         case .shortIntervals: return 35...45
         case .longIntervals: return 45...70
-        case .longRun: return 75...120
+        case .longRun: return 40...180
         }
     }
 }
@@ -463,6 +463,7 @@ struct TrainingSession: Identifiable, Codable {
     var status: SessionStatus = .planned
     var isLocked = false        // modifiée à la main : jamais écrasée par une régénération du plan
     var fitRevision = 0         // incrémentée à chaque changement qui touche le fichier
+    var isDone = false          // séance marquée comme faite par l'utilisateur
 
     var isExportable: Bool { kind.sport != .strength && status != .cancelled }
 
@@ -497,6 +498,18 @@ struct TrainingSession: Identifiable, Codable {
     mutating func cancel() {
         status = .cancelled
         isLocked = true
+    }
+
+    /// Déplacer : seule la date change, la séance et son fichier restent identiques.
+    mutating func move(to newDate: Date) {
+        date = newDate
+        status = .modified
+        isLocked = true
+    }
+
+    /// Marquer comme faite (ou remettre à faire). Une séance faite n'est jamais écrasée par une régénération.
+    mutating func setDone(_ done: Bool) {
+        isDone = done
     }
 
     /// Nom interne court (le nom du workout FIT est limité en longueur, à vérifier dans le SDK)

@@ -1,6 +1,6 @@
 name: AppSport
 options:
-  bundleIdPrefix: com.example
+  bundleIdPrefix: io.github.hdrieuxafk
   deploymentTarget:
     iOS: "17.0"
   createIntermediateGroups: true
@@ -22,10 +22,12 @@ targets:
       - Views
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.appsport
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.hdrieuxafk.appsport
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: App Sport
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
         TARGETED_DEVICE_FAMILY: "1"
   AppSportTests:
@@ -37,7 +39,7 @@ targets:
       - target: AppSport
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.appsport.tests
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.hdrieuxafk.appsport.tests
         GENERATE_INFOPLIST_FILE: YES
 schemes:
   AppSport:

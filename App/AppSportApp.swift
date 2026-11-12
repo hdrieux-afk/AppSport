@@ -13,7 +13,8 @@ struct AppSportApp: App {
             RootView()
                 .environment(store)
                 .environment(\.locale, Locale(identifier: "fr_FR"))
-                .preferredColorScheme(.light)        // la charte Trail n'a pas encore de mode sombre
+                // Les écrans actuels (charte Trail) sont clairs ; le guide de style suit le réglage de l'iPhone.
+                .preferredColorScheme(ProcessInfo.processInfo.arguments.contains("-styleguide") ? nil : .light)
                 .tint(Theme.terracotta)
         }
         .modelContainer(for: PlanEntity.self)

@@ -34,3 +34,10 @@ Xcode n'existe que sur Mac. Ici, un Mac hébergé par GitHub compile l'app à ch
 ## Mode démo
 
 Lancée avec l'argument -demo, l'app crée un plan d'exemple. La CI l'utilise pour les captures d'écran.
+
+## Installer l'app sur un iPhone depuis Windows
+
+Quand la compilation sur macOS réussit, le run publie un fichier AppSport-ipa (un par type de Mac) (section Artifacts du run).
+Il s'installe avec Sideloadly (gratuit, Windows) : iPhone en USB, Mode développeur activé
+(Réglages, Confidentialité et sécurité), puis glisser le fichier .ipa dans Sideloadly.
+Avec un identifiant Apple gratuit, l'app expire après 7 jours (il suffit de la réinstaller).

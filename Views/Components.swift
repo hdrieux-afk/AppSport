@@ -2,6 +2,7 @@
 // Petites briques d'interface réutilisées par plusieurs écrans.
 
 import SwiftUI
+import Charts
 
 /// Pastille d'icône : pleine pour une séance clé, claire pour une séance de soutien.
 struct SessionIcon: View {
@@ -34,6 +35,9 @@ struct SessionRow: View {
                     .foregroundStyle(Theme.muted)
             }
             Spacer()
+            if session.isDone {
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.sage)
+            }
         }
         .contentShape(Rectangle())
     }
@@ -43,6 +47,7 @@ struct SessionRow: View {
         var parts = ["\(session.durationMin) min"]
         if session.kind.role == .key { parts.append("séance clé") }
         if session.status == .modified { parts.append("modifiée") }
+        if session.isDone { parts.append("faite") }
         return parts.joined(separator: ", ")
     }
 }
@@ -95,5 +100,19 @@ struct FeasibilityBadge: View {
                     .foregroundStyle(Theme.muted)
             }
         }
+    }
+}
+
+/// Volume total de chaque semaine, en minutes : montre la montée en charge, les décharges et l'affûtage.
+struct WeeklyVolumeChart: View {
+    let weeks: [PlannedWeek]
+
+    var body: some View {
+        Chart(weeks) { week in
+            BarMark(x: .value("Semaine", "S\(week.index + 1)"),
+                    y: .value("Minutes", week.sessions.reduce(0) { $0 + $1.durationMin }))
+                .foregroundStyle(Theme.terracotta)
+        }
+        .frame(height: 140)
     }
 }

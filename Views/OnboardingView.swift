@@ -26,6 +26,10 @@ struct OnboardingView: View {
     @State private var minutes = 45
     @State private var seconds = 0
 
+    // Volume actuel et préremplissage
+    @State private var longRun = 60
+    @State private var prefilled = false
+
     // Valeurs calculées à partir de la saisie
     private var targetSeconds: Double? {
         let total = hours * 3600 + minutes * 60 + seconds
@@ -38,7 +42,8 @@ struct OnboardingView: View {
         AthleteProfile(vmaKmh: vma, maxHR: maxHR, hasBand: hasBand)
     }
     private var constraints: PlanConstraints {
-        PlanConstraints(runs: runs, bikes: bikes, strengths: strengths, strengthVenue: venue, goal: goal)
+        PlanConstraints(runs: runs, bikes: bikes, strengths: strengths, strengthVenue: venue,
+                        goal: goal, currentLongRunMinutes: longRun)
     }
     private var canCreate: Bool { constraints.isValid && profile.isVMAValid }
 
@@ -81,6 +86,14 @@ struct OnboardingView: View {
                     }
                 }
 
+                Section {
+                    Stepper("Sortie la plus longue : \(longRun) min", value: $longRun, in: 30...180, step: 5)
+                } header: {
+                    Text("Volume actuel")
+                } footer: {
+                    Text("Durée de votre sortie de course la plus longue ces 4 dernières semaines. Le plan démarre à ce niveau et monte progressivement, sans dépasser 10 % de hausse par semaine.")
+                }
+
                 Section("Muscu") {
                     Picker("Lieu", selection: $venue) {
                         Text("Maison").tag(Venue.home)
@@ -114,8 +127,8 @@ struct OnboardingView: View {
                 }
 
                 Section {
-                    Button("Proposer un plan") {
-                        store.createPlan(profile: profile, constraints: constraints)
+                    Button("Voir le plan proposé") {
+                        store.createDraft(profile: profile, constraints: constraints)
                     }
                     .disabled(!canCreate)
                 }
@@ -123,6 +136,38 @@ struct OnboardingView: View {
             .scrollContentBackground(.hidden)
             .background(Theme.cream)
             .navigationTitle("Mon plan")
+            .onAppear { prefill() }
+        }
+    }
+
+    /// Reprend les dernières réponses si l'utilisateur revient en arrière depuis le plan proposé.
+    private func prefill() {
+        guard !prefilled else { return }
+        prefilled = true
+        if let p = store.lastProfile {
+            vma = p.vmaKmh
+            maxHR = p.maxHR
+            hasBand = p.hasBand
+        }
+        if let c = store.lastConstraints {
+            runs = c.runs
+            bikes = c.bikes
+            strengths = c.strengths
+            venue = c.strengthVenue
+            longRun = c.currentLongRunMinutes
+            if let g = c.goal {
+                hasGoal = true
+                distance = g.distance
+                raceDate = g.date
+                if let t = g.targetSeconds {
+                    let total = Int(t)
+                    hours = total / 3600
+                    minutes = (total % 3600) / 60
+                    seconds = total % 60
+                }
+            } else {
+                hasGoal = false
+            }
         }
     }
 }

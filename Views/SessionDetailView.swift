@@ -10,6 +10,7 @@ struct SessionDetailView: View {
 
     @State private var showModify = false
     @State private var showChangeSport = false
+    @State private var showMove = false
     @State private var confirmCancel = false
     @State private var fitURL: URL?
 
@@ -53,6 +54,7 @@ struct SessionDetailView: View {
         }
         .sheet(isPresented: $showModify) { ModifySessionSheet(session: session) }
         .sheet(isPresented: $showChangeSport) { ChangeSportSheet(session: session) }
+        .sheet(isPresented: $showMove) { MoveSessionSheet(session: session) }
     }
 
     private func header(_ session: TrainingSession) -> some View {
@@ -71,6 +73,7 @@ struct SessionDetailView: View {
         var parts = ["\(session.durationMin) min", session.kind.sport.label]
         if session.kind.role == .key { parts.append("séance clé") }
         if session.status == .modified { parts.append("modifiée") }
+        if session.isDone { parts.append("faite") }
         return parts.joined(separator: ", ")
     }
 
@@ -181,6 +184,13 @@ struct SessionDetailView: View {
 
     private func actions(_ session: TrainingSession) -> some View {
         VStack(spacing: 10) {
+            Button { store.setDone(session.id, !session.isDone) } label: {
+                Label(session.isDone ? "Remettre à faire" : "Marquer comme faite",
+                      systemImage: session.isDone ? "arrow.uturn.backward" : "checkmark.circle")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+
             Button { showModify = true } label: {
                 Label("Modifier la séance", systemImage: "slider.horizontal.3")
                     .frame(maxWidth: .infinity)
@@ -189,6 +199,12 @@ struct SessionDetailView: View {
 
             Button { showChangeSport = true } label: {
                 Label("Changer de sport", systemImage: "arrow.triangle.2.circlepath")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+
+            Button { showMove = true } label: {
+                Label("Déplacer", systemImage: "calendar.badge.clock")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)

@@ -105,3 +105,52 @@ struct ChangeSportSheet: View {
         return copy.durationMin
     }
 }
+
+/// Choix du jour d'arrivée parmi les 7 jours de la même semaine, avec un avertissement non bloquant.
+struct MoveSessionSheet: View {
+    @Environment(AppStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+
+    let session: TrainingSession
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if let start = store.weekStart(of: session.id) {
+                    ForEach(0..<7, id: \.self) { day in
+                        dayRow(day: day, weekStart: start)
+                    }
+                }
+            }
+            .navigationTitle("Déplacer")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Fermer") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func dayRow(day: Int, weekStart: Date) -> some View {
+        let date = Calendar.current.date(byAdding: .day, value: day, to: weekStart) ?? weekStart
+        let isCurrent = Calendar.current.isDate(date, inSameDayAs: session.date)
+        let issues = store.issuesAfterMoving(session.id, toDay: day)
+        return Button {
+            store.move(session.id, toDay: day)
+            dismiss()
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(date.formatted(.dateTime.weekday(.wide).day().month(.wide)))
+                if isCurrent {
+                    Text("Jour actuel").font(.footnote).foregroundStyle(Theme.muted)
+                } else if !issues.isEmpty {
+                    Text("Attention : " + issues.map { $0.message }.joined(separator: ", "))
+                        .font(.footnote)
+                        .foregroundStyle(Theme.terracotta)
+                }
+            }
+        }
+        .disabled(isCurrent)
+    }
+}

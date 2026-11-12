@@ -191,3 +191,12 @@ extension EnduranceWorkout {
         return out
     }
 }
+
+extension PlanIssue {
+    var message: String {
+        switch self {
+        case .consecutiveHardSessions: return "deux séances dures d'affilée"
+        case .legsNearKeySession: return "muscu jambes à moins de 48 h d'une séance clé"
+        }
+    }
+}

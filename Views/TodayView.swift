@@ -11,7 +11,7 @@ struct TodayView: View {
         let start = Calendar.current.startOfDay(for: Date())
         return store.weeks
             .flatMap { $0.sessions }
-            .filter { $0.date >= start && $0.status != .cancelled }
+            .filter { $0.date >= start && $0.status != .cancelled && !$0.isDone }
             .sorted { $0.date < $1.date }
     }
 
