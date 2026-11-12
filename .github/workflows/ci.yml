@@ -174,7 +174,7 @@ jobs:
           gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --prerelease --title "Dernière compilation" --notes "Fichiers produits automatiquement par la CI." || true
           {
             echo "run ${{ github.run_number }} (${{ matrix.os }}), commit ${GITHUB_SHA::7}"
-            grep -hE "error:|\*\* BUILD FAILED|Test Case .* failed|XCTAssert|Fatal error" build.log test.log archive.log 2>/dev/null | sed 's#/Users/runner/work/AppSport/AppSport/##' | sort -u | head -200
+            grep -hE "error:|\*\* BUILD FAILED|Test Case .* failed|XCTAssert|Fatal error" build.log test.log archive.log 2>/dev/null | sed 's#/Users/runner/work/AppSport/AppSport/##' | sort -u | head -200 || true
             echo "(fin du fichier)"
           } > "errors_${{ matrix.os }}.txt"
           gh release upload "$TAG" "errors_${{ matrix.os }}.txt" --clobber
