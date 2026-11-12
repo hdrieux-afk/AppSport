@@ -141,7 +141,7 @@ struct MoveSessionSheet: View {
             dismiss()
         } label: {
             VStack(alignment: .leading, spacing: 2) {
-                Text(date.formatted(.dateTime.weekday(.wide).day().month(.wide)))
+                Text(date.fr(.dateTime.weekday(.wide).day().month(.wide)))
                 if isCurrent {
                     Text("Jour actuel").font(.footnote).foregroundStyle(Theme.muted)
                 } else if !issues.isEmpty {

@@ -104,6 +104,23 @@ jobs:
           for p in 0 1 2; do shot "6_guide_sombre_$p" -styleguide YES -guidePage $p; done
           xcrun simctl ui "$ID" appearance light
 
+      - name: Diagnostic du lancement avec un plan proposé
+        if: ${{ always() && steps.build.outcome == 'success' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          mkdir -p diag
+          ID="${{ steps.sim.outputs.id }}"
+          BID=io.github.hdrieuxafk.appsport
+          xcrun simctl terminate "$ID" "$BID" || true
+          rm -f ~/Library/Logs/DiagnosticReports/*AppSport* 2>/dev/null || true
+          (xcrun simctl launch --console "$ID" "$BID" -demoDraft YES > diag/console.txt 2>&1 &)
+          sleep 10
+          xcrun simctl io "$ID" screenshot diag/apres_10s.png || true
+          xcrun simctl terminate "$ID" "$BID" || true
+          cp ~/Library/Logs/DiagnosticReports/*AppSport* diag/ 2>/dev/null || true
+          ls -la diag
+
       - name: Construire le fichier à installer sur iPhone (IPA non signé)
         id: ipa
         if: ${{ always() && steps.build.outcome == 'success' }}
@@ -160,4 +177,9 @@ jobs:
           if ls screenshots/*.png >/dev/null 2>&1; then
             for f in screenshots/*.png; do cp "$f" "screenshots/${{ matrix.os }}_$(basename "$f")"; done
             gh release upload "$TAG" screenshots/${{ matrix.os }}_*.png --clobber
+          fi
+          if ls diag/* >/dev/null 2>&1; then
+            mkdir -p reldiag
+            for f in diag/*; do cp "$f" "reldiag/${{ matrix.os }}_diag_$(basename "$f")"; done
+            gh release upload "$TAG" reldiag/* --clobber
           fi

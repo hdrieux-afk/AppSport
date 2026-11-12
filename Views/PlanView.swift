@@ -46,7 +46,7 @@ private struct DayRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            Text(date.formatted(.dateTime.weekday(.abbreviated).day()))
+            Text(date.fr(.dateTime.weekday(.abbreviated).day()))
                 .font(.footnote)
                 .foregroundStyle(Theme.muted)
                 .frame(width: 56, alignment: .leading)

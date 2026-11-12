@@ -56,7 +56,7 @@ struct PlanProposalView: View {
         Section("Résumé") {
             LabeledContent("Durée du plan", value: "\(draft.weeks.count) semaines")
             LabeledContent("Séances par semaine", value: "\(draft.constraints.total)")
-            LabeledContent("Début", value: draft.startDate.formatted(.dateTime.day().month(.wide)))
+            LabeledContent("Début", value: draft.startDate.fr(.dateTime.day().month(.wide)))
             if let goal = draft.constraints.goal {
                 FeasibilityBadge(goal: goal, vmaKmh: draft.profile.vmaKmh)
             }
@@ -85,7 +85,7 @@ private struct ProposalDayRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Text(date.formatted(.dateTime.weekday(.abbreviated).day()))
+            Text(date.fr(.dateTime.weekday(.abbreviated).day()))
                 .font(.footnote)
                 .foregroundStyle(Theme.muted)
                 .frame(width: 56, alignment: .leading)

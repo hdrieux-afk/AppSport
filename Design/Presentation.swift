@@ -200,3 +200,10 @@ extension PlanIssue {
         }
     }
 }
+
+extension Date {
+    /// Date mise en forme en français, quel que soit le réglage de langue de l'iPhone.
+    func fr(_ format: Date.FormatStyle) -> String {
+        formatted(format.locale(Locale(identifier: "fr_FR")))
+    }
+}

@@ -59,7 +59,7 @@ struct SessionDetailView: View {
 
     private func header(_ session: TrainingSession) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(session.date.formatted(.dateTime.weekday(.wide).day().month(.wide)))
+            Text(session.date.fr(.dateTime.weekday(.wide).day().month(.wide)))
                 .font(.footnote)
                 .foregroundStyle(Theme.muted)
             Text(session.kind.title)

@@ -105,6 +105,7 @@ struct DSBanner: View {
                     .font(DSFont.footnote)
                     .foregroundStyle(DSColor.textPrimary)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, DSSpace.m)
             DSHairline()
         }

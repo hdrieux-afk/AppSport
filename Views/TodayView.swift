@@ -27,7 +27,7 @@ struct TodayView: View {
                         SessionDetailView(sessionID: next.id)
                     } label: {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text(next.date.formatted(.dateTime.weekday(.wide).day().month(.wide)))
+                            Text(next.date.fr(.dateTime.weekday(.wide).day().month(.wide)))
                                 .font(.footnote)
                                 .foregroundStyle(Theme.muted)
                             SessionRow(session: next)
@@ -46,7 +46,7 @@ struct TodayView: View {
                             SessionDetailView(sessionID: session.id)
                         } label: {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(session.date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)))
+                                Text(session.date.fr(.dateTime.weekday(.wide).day().month(.abbreviated)))
                                     .font(.footnote)
                                     .foregroundStyle(Theme.muted)
                                 SessionRow(session: session)

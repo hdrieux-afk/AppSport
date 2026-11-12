@@ -31,7 +31,7 @@ struct ProfileView: View {
                 if let goal = store.goal {
                     Section("Objectif") {
                         LabeledContent(goal.distance.label,
-                                       value: goal.date.formatted(.dateTime.day().month(.wide).year()))
+                                       value: goal.date.fr(.dateTime.day().month(.wide).year()))
                         if let target = goal.targetSeconds {
                             LabeledContent("Temps visé", value: formatClock(target))
                         }
