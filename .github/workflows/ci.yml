@@ -37,6 +37,8 @@ jobs:
     name: App complète sur macOS (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
+    permissions:
+      contents: write          # nécessaire pour publier dans une release
     strategy:
       fail-fast: false         # un type de Mac en panne de capacité n'arrête pas l'autre
       matrix:
@@ -143,3 +145,19 @@ jobs:
           name: captures-ecran-${{ matrix.os }}
           path: screenshots
           if-no-files-found: ignore
+
+      - name: Publier dans la release build-latest
+        if: ${{ always() && steps.ipa.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          TAG=build-latest
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --prerelease --title "Dernière compilation" --notes "Fichiers produits automatiquement par la CI : IPA non signé et captures d'écran." || true
+          cp ipa/AppSport.ipa "ipa/AppSport-${{ matrix.os }}.ipa"
+          gh release upload "$TAG" "ipa/AppSport-${{ matrix.os }}.ipa" --clobber
+          if ls screenshots/*.png >/dev/null 2>&1; then
+            for f in screenshots/*.png; do cp "$f" "screenshots/${{ matrix.os }}_$(basename "$f")"; done
+            gh release upload "$TAG" screenshots/${{ matrix.os }}_*.png --clobber
+          fi
