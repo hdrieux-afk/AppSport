@@ -6,6 +6,7 @@ import SwiftUI
 struct ProfileView: View {
     @Environment(AppStore.self) private var store
     @State private var confirmReset = false
+    @State private var showEdit = false
 
     var body: some View {
         ScrollView {
@@ -43,14 +44,23 @@ struct ProfileView: View {
                     }
                 }
 
-                Button("Réinitialiser le plan") { confirmReset = true }
-                    .buttonStyle(.dsDestructive)
+                VStack(spacing: DSSpace.s) {
+                    Button("Modifier le profil et l’objectif") { showEdit = true }
+                        .buttonStyle(.dsSecondary)
+                    Button("Réinitialiser le plan") { confirmReset = true }
+                        .buttonStyle(.dsDestructive)
+                }
             }
             .padding(.horizontal, DSSpace.l)
             .padding(.bottom, DSSpace.xxl)
         }
         .background(DSColor.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(isPresented: $showEdit) {
+            if let p = store.profile {
+                EditProfileSheet(profile: p, goal: store.goal)
+            }
+        }
         .confirmationDialog("Effacer le plan et recommencer ?", isPresented: $confirmReset, titleVisibility: .visible) {
             Button("Effacer le plan", role: .destructive) { store.reset() }
             Button("Annuler", role: .cancel) {}

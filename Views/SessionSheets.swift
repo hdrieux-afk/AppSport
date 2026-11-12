@@ -4,35 +4,6 @@
 
 import SwiftUI
 
-/// Cadre commun des fenêtres : titre en serif, bouton Fermer, fond de la charte.
-private struct SheetFrame<Content: View>: View {
-    @Environment(\.dismiss) private var dismiss
-    let title: String
-    private let content: () -> Content
-
-    init(title: String, @ViewBuilder content: @escaping () -> Content) {
-        self.title = title
-        self.content = content
-    }
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: DSSpace.l) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(title).ds(.title)
-                    Spacer()
-                    Button("Fermer") { dismiss() }
-                        .font(DSFont.footnote)
-                        .foregroundStyle(DSColor.textPrimary)
-                }
-                content()
-            }
-            .padding(DSSpace.l)
-        }
-        .background(DSColor.background.ignoresSafeArea())
-    }
-}
-
 struct ModifySessionSheet: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
@@ -48,7 +19,7 @@ struct ModifySessionSheet: View {
     }
 
     var body: some View {
-        SheetFrame(title: "Modifier la séance") {
+        DSSheetFrame(title: "Modifier la séance") {
             VStack(alignment: .leading, spacing: DSSpace.l) {
                 DSStepperRow(label: "Durée", value: $duration, range: session.kind.durationRange, step: 5, unit: " min")
 
@@ -83,7 +54,7 @@ struct ChangeSportSheet: View {
     let session: TrainingSession
 
     var body: some View {
-        SheetFrame(title: "Changer de sport") {
+        DSSheetFrame(title: "Changer de sport") {
             VStack(alignment: .leading, spacing: 0) {
                 DSHairline()
                 ForEach(SessionKind.choices(venue: store.constraints?.strengthVenue ?? .home), id: \.title) { kind in
@@ -132,7 +103,7 @@ struct MoveSessionSheet: View {
     let session: TrainingSession
 
     var body: some View {
-        SheetFrame(title: "Déplacer la séance") {
+        DSSheetFrame(title: "Déplacer la séance") {
             VStack(alignment: .leading, spacing: 0) {
                 DSHairline()
                 if let start = store.weekStart(of: session.id) {

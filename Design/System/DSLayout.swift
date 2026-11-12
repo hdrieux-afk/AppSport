@@ -222,3 +222,32 @@ struct DSVolumeChart: View {
         .frame(height: 150, alignment: .bottom)
     }
 }
+
+/// Cadre commun des fenêtres : titre en serif, bouton Fermer, fond de la charte.
+struct DSSheetFrame<Content: View>: View {
+    @Environment(\.dismiss) private var dismiss
+    let title: String
+    private let content: () -> Content
+
+    init(title: String, @ViewBuilder content: @escaping () -> Content) {
+        self.title = title
+        self.content = content
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: DSSpace.l) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(title).ds(.title)
+                    Spacer()
+                    Button("Fermer") { dismiss() }
+                        .font(DSFont.footnote)
+                        .foregroundStyle(DSColor.textPrimary)
+                }
+                content()
+            }
+            .padding(DSSpace.l)
+        }
+        .background(DSColor.background.ignoresSafeArea())
+    }
+}

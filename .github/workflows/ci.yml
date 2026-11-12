@@ -30,22 +30,6 @@ jobs:
           set -o pipefail
           swift test 2>&1 | tee swift-test.log
 
-      - name: Publier les erreurs de compilation dans la release
-        if: ${{ always() }}
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          TAG=build-latest
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --prerelease --title "Dernière compilation" --notes "Fichiers produits automatiquement par la CI." || true
-          {
-            echo "run ${{ github.run_number }} (${{ matrix.os }}), commit ${GITHUB_SHA::7}"
-            grep -hE "error:|\*\* BUILD FAILED|Test Case .* failed|XCTAssert|Fatal error" build.log test.log archive.log 2>/dev/null | sed 's#/Users/runner/work/AppSport/AppSport/##' | sort -u | head -200
-            echo "(fin du fichier)"
-          } > "errors_${{ matrix.os }}.txt"
-          gh release upload "$TAG" "errors_${{ matrix.os }}.txt" --clobber
-
       - name: Résumé des erreurs
         if: failure()
         shell: bash
@@ -123,9 +107,17 @@ jobs:
           shot 2_aujourdhui -selectedTab 0 -demo YES
           shot 3_plan -selectedTab 1
           shot 4_profil -selectedTab 2
+          shot 4b_detail_course -showDetail run
+          shot 4c_detail_muscu -showDetail strength
           for p in 0 1 2; do shot "5_guide_clair_$p" -styleguide YES -guidePage $p; done
           xcrun simctl ui "$ID" appearance dark
           for p in 0 1 2; do shot "6_guide_sombre_$p" -styleguide YES -guidePage $p; done
+          shot 7a_sombre_aujourdhui -selectedTab 0
+          shot 7b_sombre_plan -selectedTab 1
+          shot 7c_sombre_detail -showDetail run
+          shot 7d_sombre_profil -selectedTab 2
+          shot 7e_sombre_onboarding -resetPlan YES
+          shot 7f_sombre_propose -resetPlan YES -demoDraft YES
           xcrun simctl ui "$ID" appearance light
 
       - name: Diagnostic du lancement avec un plan proposé
@@ -170,6 +162,22 @@ jobs:
         with:
           name: AppSport-ipa-${{ matrix.os }}
           path: ipa/AppSport.ipa
+
+      - name: Publier les erreurs de compilation dans la release
+        if: ${{ always() }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          TAG=build-latest
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --prerelease --title "Dernière compilation" --notes "Fichiers produits automatiquement par la CI." || true
+          {
+            echo "run ${{ github.run_number }} (${{ matrix.os }}), commit ${GITHUB_SHA::7}"
+            grep -hE "error:|\*\* BUILD FAILED|Test Case .* failed|XCTAssert|Fatal error" build.log test.log archive.log 2>/dev/null | sed 's#/Users/runner/work/AppSport/AppSport/##' | sort -u | head -200
+            echo "(fin du fichier)"
+          } > "errors_${{ matrix.os }}.txt"
+          gh release upload "$TAG" "errors_${{ matrix.os }}.txt" --clobber
 
       - name: Résumé des erreurs
         if: ${{ failure() || steps.ipa.outcome == 'failure' }}

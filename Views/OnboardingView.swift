@@ -30,6 +30,9 @@ struct OnboardingView: View {
     @State private var longRun = 60
     @State private var prefilled = false
 
+    // Avertissement santé : demandé une seule fois
+    @AppStorage("disclaimerAccepted") private var disclaimerAccepted = false
+
     // Valeurs calculées à partir de la saisie
     private var targetSeconds: Double? {
         let total = hours * 3600 + minutes * 60 + seconds
@@ -45,7 +48,7 @@ struct OnboardingView: View {
         PlanConstraints(runs: runs, bikes: bikes, strengths: strengths, strengthVenue: venue,
                         goal: goal, currentLongRunMinutes: longRun)
     }
-    private var canCreate: Bool { constraints.isValid && profile.isVMAValid }
+    private var canCreate: Bool { constraints.isValid && profile.isVMAValid && disclaimerAccepted }
 
     var body: some View {
         NavigationStack {
@@ -58,6 +61,7 @@ struct OnboardingView: View {
                     volumeSection
                     strengthSection
                     goalSection
+                    disclaimerSection
 
                     Button("Voir le plan proposé") {
                         store.createDraft(profile: profile, constraints: constraints)
@@ -178,6 +182,19 @@ struct OnboardingView: View {
                     DSBanner(text: warning)
                 }
             }
+        }
+    }
+
+    private var disclaimerSection: some View {
+        VStack(alignment: .leading, spacing: DSSpace.s) {
+            DSSectionLabel(text: "Avant de commencer")
+            Text("Cette app propose des plans d’entraînement généraux. Elle ne remplace pas l’avis d’un médecin. En cas de doute, de douleur ou de problème de santé, consultez un professionnel avant de vous entraîner.")
+                .ds(.footnote)
+            Toggle(isOn: $disclaimerAccepted) {
+                Text("J’ai compris").ds(.body)
+            }
+            .padding(.vertical, DSSpace.s)
+            DSHairline()
         }
     }
 

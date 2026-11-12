@@ -133,6 +133,41 @@ final class AppStore {
         createDraft(profile: p, constraints: c)
     }
 
+    // MARK: - Modification du profil et de l'objectif
+
+    /// Met à jour le profil et l'objectif, puis replanifie à partir d'aujourd'hui.
+    func updateProfile(_ newProfile: AthleteProfile, goal newGoal: RaceGoal?) {
+        guard var current = constraints else { return }
+        profile = newProfile
+        current.goal = newGoal
+        constraints = current
+        replanFromToday()
+    }
+
+    /// Replanifie les semaines à venir. Les semaines passées sont conservées telles quelles, et dans les semaines
+    /// à venir les séances verrouillées (modifiées à la main) ou faites sont conservées.
+    func replanFromToday() {
+        guard let constraints = constraints else { return }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let timeline = PlanGenerator.timeline(for: constraints, start: startDate)
+        var rebuilt: [PlannedWeek] = []
+        for w in 0..<timeline.totalWeeks {
+            let start = weekStart(index: w)
+            let end = calendar.date(byAdding: .day, value: 7, to: start) ?? start
+            let existing: PlannedWeek? = weeks.indices.contains(w) ? weeks[w] : nil
+            if let past = existing, end <= today {
+                rebuilt.append(past)
+                continue
+            }
+            let kept = existing?.sessions.filter { $0.isLocked || $0.isDone } ?? []
+            rebuilt.append(PlanGenerator.generateWeek(week: w, weekStart: start, constraints: constraints,
+                                                      timeline: timeline, locked: kept, seed: constraints.layoutSeed))
+        }
+        weeks = rebuilt
+        save()
+    }
+
     // MARK: - Régénération d'une semaine
 
     /// Régénère une semaine : les séances verrouillées ou faites sont conservées.
