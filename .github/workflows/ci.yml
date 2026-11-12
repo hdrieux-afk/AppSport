@@ -95,7 +95,7 @@ jobs:
             xcrun simctl terminate "$ID" io.github.hdrieuxafk.appsport || true
           }
           shot 1_onboarding
-          shot 1b_plan_propose -demoDraft YES
+          shot 1b_plan_propose -resetPlan YES -demoDraft YES
           shot 2_aujourdhui -selectedTab 0 -demo YES
           shot 3_plan -selectedTab 1
           shot 4_profil -selectedTab 2
@@ -114,9 +114,12 @@ jobs:
           BID=io.github.hdrieuxafk.appsport
           xcrun simctl terminate "$ID" "$BID" || true
           rm -f ~/Library/Logs/DiagnosticReports/*AppSport* 2>/dev/null || true
-          (xcrun simctl launch --console "$ID" "$BID" -demoDraft YES > diag/console.txt 2>&1 &)
-          sleep 10
-          xcrun simctl io "$ID" screenshot diag/apres_10s.png || true
+          (xcrun simctl launch --console "$ID" "$BID" -resetPlan YES -demoDraft YES > diag/console.txt 2>&1 &)
+          sleep 4
+          xcrun simctl io "$ID" screenshot diag/apres_4s.png || true
+          sleep 8
+          xcrun simctl io "$ID" screenshot diag/apres_12s.png || true
+          xcrun simctl spawn "$ID" log show --last 2m --style compact --predicate 'process == "AppSport"' 2>/dev/null | tail -150 > diag/journal.txt || true
           xcrun simctl terminate "$ID" "$BID" || true
           cp ~/Library/Logs/DiagnosticReports/*AppSport* diag/ 2>/dev/null || true
           ls -la diag

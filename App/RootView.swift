@@ -31,6 +31,7 @@ struct RootView: View {
         .onAppear {
             store.attach(context)
             let args = ProcessInfo.processInfo.arguments
+            if args.contains("-resetPlan") { store.reset() }
             if args.contains("-demo") && store.weeks.isEmpty {
                 store.createDemoPlan()
             } else if args.contains("-demoDraft") && store.weeks.isEmpty && store.draft == nil {

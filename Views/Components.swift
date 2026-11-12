@@ -2,7 +2,6 @@
 // Petites briques d'interface réutilisées par plusieurs écrans.
 
 import SwiftUI
-import Charts
 
 /// Pastille d'icône : pleine pour une séance clé, claire pour une séance de soutien.
 struct SessionIcon: View {
@@ -104,15 +103,29 @@ struct FeasibilityBadge: View {
 }
 
 /// Volume total de chaque semaine, en minutes : montre la montée en charge, les décharges et l'affûtage.
+/// Tracé avec de simples rectangles SwiftUI, sans Swift Charts.
 struct WeeklyVolumeChart: View {
     let weeks: [PlannedWeek]
 
     var body: some View {
-        Chart(weeks) { week in
-            BarMark(x: .value("Semaine", "S\(week.index + 1)"),
-                    y: .value("Minutes", week.sessions.reduce(0) { $0 + $1.durationMin }))
-                .foregroundStyle(Theme.terracotta)
+        let values = weeks.map { week in week.sessions.reduce(0) { $0 + $1.durationMin } }
+        let top = max(values.max() ?? 1, 1)
+        HStack(alignment: .bottom, spacing: 6) {
+            ForEach(Array(values.enumerated()), id: \.offset) { index, value in
+                VStack(spacing: 4) {
+                    Text("\(value)")
+                        .font(.caption2)
+                        .foregroundStyle(Theme.muted)
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Theme.terracotta)
+                        .frame(height: max(4, 100 * CGFloat(value) / CGFloat(top)))
+                    Text("S\(index + 1)")
+                        .font(.caption2)
+                        .foregroundStyle(Theme.muted)
+                }
+                .frame(maxWidth: .infinity)
+            }
         }
-        .frame(height: 140)
+        .frame(height: 140, alignment: .bottom)
     }
 }
