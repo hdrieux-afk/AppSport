@@ -82,12 +82,23 @@ extension Feasibility {
         }
     }
 
-    var color: Color {
+    /// Cran de l'échelle de faisabilité, de 0 à 3.
+    var rank: Int {
         switch self {
-        case .cautious: return Theme.muted
-        case .realistic: return Theme.sage
-        case .ambitious: return Color(hex: 0xE0A98F)
-        case .veryAmbitious: return Theme.terracotta
+        case .cautious: return 0
+        case .realistic: return 1
+        case .ambitious: return 2
+        case .veryAmbitious: return 3
+        }
+    }
+}
+
+extension Sport {
+    var label: String {
+        switch self {
+        case .run: return "Course"
+        case .bike: return "Vélo"
+        case .strength: return "Muscu"
         }
     }
 }

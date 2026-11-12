@@ -1,5 +1,5 @@
 // AppSportApp.swift
-// Point d'entrée de l'app : crée le store, la base SwiftData, et applique la charte Trail.
+// Point d'entrée de l'app : crée le store, la base SwiftData, et applique la charte (clair et sombre selon l'iPhone).
 
 import SwiftUI
 import SwiftData
@@ -13,9 +13,7 @@ struct AppSportApp: App {
             RootView()
                 .environment(store)
                 .environment(\.locale, Locale(identifier: "fr_FR"))
-                // Les écrans actuels (charte Trail) sont clairs ; le guide de style suit le réglage de l'iPhone.
-                .preferredColorScheme(ProcessInfo.processInfo.arguments.contains("-styleguide") ? nil : .light)
-                .tint(Theme.terracotta)
+                .tint(DSColor.textPrimary)
         }
         .modelContainer(for: PlanEntity.self)
     }

@@ -8,25 +8,36 @@ struct PlanView: View {
     @Environment(AppStore.self) private var store
 
     var body: some View {
-        List {
-            ForEach(store.weeks) { week in
-                Section {
-                    ForEach(0..<7, id: \.self) { day in
-                        DayRow(week: week, day: day)
-                    }
-                } header: {
-                    HStack {
-                        Text("Semaine \(week.index + 1), \(week.phase.label)")
-                        Spacer()
-                        Button("Régénérer") { store.regenerateWeek(week.index) }
-                            .font(.footnote)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: DSSpace.xl) {
+                DSScreenHeader(title: "Plan")
+
+                ForEach(store.weeks) { week in
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack {
+                            DSSectionLabel(text: "Semaine \(week.index + 1), \(week.phase.label)")
+                            Spacer()
+                            Button {
+                                store.regenerateWeek(week.index)
+                            } label: {
+                                Text("Régénérer").underline()
+                            }
+                            .font(DSFont.footnote)
+                            .foregroundStyle(DSColor.textPrimary)
+                        }
+                        DSHairline()
+                        ForEach(0..<7, id: \.self) { day in
+                            DayRow(week: week, day: day)
+                            DSHairline()
+                        }
                     }
                 }
             }
+            .padding(.horizontal, DSSpace.l)
+            .padding(.bottom, DSSpace.xxl)
         }
-        .scrollContentBackground(.hidden)
-        .background(Theme.cream)
-        .navigationTitle("Plan")
+        .background(DSColor.background.ignoresSafeArea())
+        .toolbar(.hidden, for: .navigationBar)
     }
 }
 
@@ -45,31 +56,32 @@ private struct DayRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: DSSpace.m) {
             Text(date.fr(.dateTime.weekday(.abbreviated).day()))
-                .font(.footnote)
-                .foregroundStyle(Theme.muted)
-                .frame(width: 56, alignment: .leading)
+                .ds(.footnote)
+                .frame(width: 64, alignment: .leading)
 
             if sessions.isEmpty {
                 restRow
             } else {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DSSpace.s) {
                     ForEach(sessions) { session in
                         NavigationLink {
                             SessionDetailView(sessionID: session.id)
                         } label: {
-                            SessionRow(session: session)
+                            DSSessionRow(session: session)
                         }
+                        .buttonStyle(.plain)
                     }
                 }
             }
         }
+        .padding(.vertical, DSSpace.m)
     }
 
     private var restRow: some View {
         HStack {
-            Text("Repos").foregroundStyle(Theme.muted)
+            Text("Repos").ds(.footnote)
             Spacer()
             Menu {
                 ForEach(SessionKind.choices(venue: store.constraints?.strengthVenue ?? .home), id: \.title) { kind in
@@ -79,7 +91,8 @@ private struct DayRow: View {
                 }
             } label: {
                 Label("Ajouter", systemImage: "plus")
-                    .font(.footnote)
+                    .font(DSFont.footnote)
+                    .foregroundStyle(DSColor.textPrimary)
             }
         }
     }

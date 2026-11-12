@@ -8,48 +8,60 @@ struct ProfileView: View {
     @State private var confirmReset = false
 
     var body: some View {
-        List {
-            if let p = store.profile {
-                Section("Profil sportif") {
-                    LabeledContent("VMA", value: String(format: "%.1f km/h", p.vmaKmh))
-                    LabeledContent("FC max", value: "\(p.maxHR) bpm")
-                    LabeledContent("Élastique", value: p.hasBand ? "Oui" : "Non")
-                }
+        ScrollView {
+            VStack(alignment: .leading, spacing: DSSpace.xl) {
+                DSScreenHeader(title: "Profil")
 
-                Section("Zones de fréquence cardiaque") {
-                    ForEach(0..<5, id: \.self) { i in
-                        LabeledContent("Z\(i + 1)", value: hrZone(p, index: i))
+                if let p = store.profile {
+                    block("Profil sportif") {
+                        DSLabeledRow(label: "VMA", value: String(format: "%.1f km/h", p.vmaKmh))
+                        DSLabeledRow(label: "FC max", value: "\(p.maxHR) bpm")
+                        DSLabeledRow(label: "Élastique", value: p.hasBand ? "Oui" : "Non")
                     }
-                }
 
-                Section("Allures clés") {
-                    LabeledContent("Endurance", value: paceRange(p, 0.60, 0.75))
-                    LabeledContent("Seuil", value: paceRange(p, 0.80, 0.88))
-                    LabeledContent("VMA", value: paceRange(p, 0.95, 1.05))
-                }
-
-                if let goal = store.goal {
-                    Section("Objectif") {
-                        LabeledContent(goal.distance.label,
-                                       value: goal.date.fr(.dateTime.day().month(.wide).year()))
-                        if let target = goal.targetSeconds {
-                            LabeledContent("Temps visé", value: formatClock(target))
+                    block("Zones de fréquence cardiaque") {
+                        ForEach(0..<5, id: \.self) { i in
+                            DSLabeledRow(label: "Z\(i + 1)", value: hrZone(p, index: i))
                         }
-                        FeasibilityBadge(goal: goal, vmaKmh: p.vmaKmh)
+                    }
+
+                    block("Allures clés") {
+                        DSLabeledRow(label: "Endurance", value: paceRange(p, 0.60, 0.75))
+                        DSLabeledRow(label: "Seuil", value: paceRange(p, 0.80, 0.88))
+                        DSLabeledRow(label: "VMA", value: paceRange(p, 0.95, 1.05))
+                    }
+
+                    if let goal = store.goal {
+                        block("Objectif") {
+                            DSLabeledRow(label: goal.distance.label,
+                                         value: goal.date.fr(.dateTime.day().month(.wide).year()))
+                            if let target = goal.targetSeconds {
+                                DSLabeledRow(label: "Temps visé", value: formatClock(target))
+                            }
+                            DSFeasibility(goal: goal, vmaKmh: p.vmaKmh)
+                        }
                     }
                 }
-            }
 
-            Section {
-                Button("Réinitialiser le plan", role: .destructive) { confirmReset = true }
+                Button("Réinitialiser le plan") { confirmReset = true }
+                    .buttonStyle(.dsDestructive)
             }
+            .padding(.horizontal, DSSpace.l)
+            .padding(.bottom, DSSpace.xxl)
         }
-        .scrollContentBackground(.hidden)
-        .background(Theme.cream)
-        .navigationTitle("Profil")
+        .background(DSColor.background.ignoresSafeArea())
+        .toolbar(.hidden, for: .navigationBar)
         .confirmationDialog("Effacer le plan et recommencer ?", isPresented: $confirmReset, titleVisibility: .visible) {
             Button("Effacer le plan", role: .destructive) { store.reset() }
             Button("Annuler", role: .cancel) {}
+        }
+    }
+
+    private func block<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            DSSectionLabel(text: title)
+            DSHairline()
+            content()
         }
     }
 

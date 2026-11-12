@@ -49,94 +49,135 @@ struct OnboardingView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Profil sportif") {
-                    HStack {
-                        Text("VMA (km/h)")
-                        Spacer()
-                        TextField("15", value: $vma, format: .number)
-                            .keyboardType(.decimalPad)
-                            .multilineTextAlignment(.trailing)
-                            .frame(width: 80)
-                    }
-                    HStack {
-                        Text("FC max (bpm)")
-                        Spacer()
-                        TextField("190", value: $maxHR, format: .number)
-                            .keyboardType(.numberPad)
-                            .multilineTextAlignment(.trailing)
-                            .frame(width: 80)
-                    }
-                    if !profile.isVMAValid {
-                        Text("La VMA doit être comprise entre 8 et 25 km/h.")
-                            .font(.footnote)
-                            .foregroundStyle(.red)
-                    }
-                }
+            ScrollView {
+                VStack(alignment: .leading, spacing: DSSpace.xl) {
+                    DSScreenHeader(title: "Mon plan", subtitle: "Quelques réponses pour construire votre plan")
 
-                Section("Séances par semaine") {
-                    Stepper("Course : \(runs)", value: $runs, in: 0...7)
-                    Stepper("Vélo : \(bikes)", value: $bikes, in: 0...7)
-                    Stepper("Muscu : \(strengths)", value: $strengths, in: 0...7)
-                    LabeledContent("Total", value: "\(constraints.total) séances")
-                    if !constraints.isValid {
-                        Text("Choisissez entre 2 et 7 séances au total.")
-                            .font(.footnote)
-                            .foregroundStyle(.red)
-                    }
-                }
+                    profileSection
+                    sessionsSection
+                    volumeSection
+                    strengthSection
+                    goalSection
 
-                Section {
-                    Stepper("Sortie la plus longue : \(longRun) min", value: $longRun, in: 30...180, step: 5)
-                } header: {
-                    Text("Volume actuel")
-                } footer: {
-                    Text("Durée de votre sortie de course la plus longue ces 4 dernières semaines. Le plan démarre à ce niveau et monte progressivement, sans dépasser 10 % de hausse par semaine.")
-                }
-
-                Section("Muscu") {
-                    Picker("Lieu", selection: $venue) {
-                        Text("Maison").tag(Venue.home)
-                        Text("Salle").tag(Venue.gym)
-                    }
-                    .pickerStyle(.segmented)
-                    Toggle("J'ai un élastique", isOn: $hasBand)
-                }
-
-                Section("Objectif course") {
-                    Toggle("J'ai un objectif", isOn: $hasGoal)
-                    if hasGoal {
-                        Picker("Distance", selection: $distance) {
-                            ForEach(RaceDistance.allCases, id: \.self) { d in
-                                Text(d.label).tag(d)
-                            }
-                        }
-                        DatePicker("Date de la course", selection: $raceDate, in: Date()..., displayedComponents: .date)
-                        Stepper("Temps visé, heures : \(hours)", value: $hours, in: 0...6)
-                        Stepper("Minutes : \(minutes)", value: $minutes, in: 0...59)
-                        Stepper("Secondes : \(seconds)", value: $seconds, in: 0...55, step: 5)
-                        if let g = goal {
-                            FeasibilityBadge(goal: g, vmaKmh: vma)
-                        }
-                        ForEach(constraints.warnings(), id: \.self) { warning in
-                            Label(warning, systemImage: "exclamationmark.triangle")
-                                .font(.footnote)
-                                .foregroundStyle(Theme.terracotta)
-                        }
-                    }
-                }
-
-                Section {
                     Button("Voir le plan proposé") {
                         store.createDraft(profile: profile, constraints: constraints)
                     }
+                    .buttonStyle(.dsPrimary)
                     .disabled(!canCreate)
+                    .opacity(canCreate ? 1 : 0.4)
+                }
+                .padding(.horizontal, DSSpace.l)
+                .padding(.bottom, DSSpace.xxl)
+            }
+            .background(DSColor.background.ignoresSafeArea())
+            .toolbar(.hidden, for: .navigationBar)
+            .onAppear { prefill() }
+        }
+    }
+
+    // MARK: - Sections
+
+    private var profileSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            DSSectionLabel(text: "Profil sportif")
+            DSFieldRow(label: "VMA (km/h)") {
+                TextField("15", value: $vma, format: .number)
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.trailing)
+                    .font(DSFont.headline)
+                    .frame(width: 90)
+            }
+            DSFieldRow(label: "FC max (bpm)") {
+                TextField("190", value: $maxHR, format: .number)
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.trailing)
+                    .font(DSFont.headline)
+                    .frame(width: 90)
+            }
+            if !profile.isVMAValid {
+                Text("La VMA doit être comprise entre 8 et 25 km/h.")
+                    .font(DSFont.footnote)
+                    .foregroundStyle(DSColor.accentText)
+                    .padding(.top, DSSpace.s)
+            }
+        }
+    }
+
+    private var sessionsSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            DSSectionLabel(text: "Séances par semaine")
+            DSStepperRow(label: "Course", value: $runs, range: 0...7)
+            DSStepperRow(label: "Vélo", value: $bikes, range: 0...7)
+            DSStepperRow(label: "Muscu", value: $strengths, range: 0...7)
+            DSLabeledRow(label: "Total", value: "\(constraints.total) séances")
+            if !constraints.isValid {
+                Text("Choisissez entre 2 et 7 séances au total.")
+                    .font(DSFont.footnote)
+                    .foregroundStyle(DSColor.accentText)
+                    .padding(.top, DSSpace.s)
+            }
+        }
+    }
+
+    private var volumeSection: some View {
+        VStack(alignment: .leading, spacing: DSSpace.s) {
+            DSSectionLabel(text: "Volume actuel")
+            DSStepperRow(label: "Sortie la plus longue", value: $longRun, range: 30...180, step: 5, unit: " min")
+            Text("Durée de votre sortie de course la plus longue ces 4 dernières semaines. Le plan démarre à ce niveau et monte progressivement, sans dépasser 10 % de hausse par semaine.")
+                .ds(.footnote)
+        }
+    }
+
+    private var strengthSection: some View {
+        VStack(alignment: .leading, spacing: DSSpace.s) {
+            DSSectionLabel(text: "Muscu")
+            Picker("Lieu", selection: $venue) {
+                Text("Maison").tag(Venue.home)
+                Text("Salle").tag(Venue.gym)
+            }
+            .pickerStyle(.segmented)
+            Toggle(isOn: $hasBand) {
+                Text("J'ai un élastique").ds(.body)
+            }
+            .padding(.vertical, DSSpace.s)
+            DSHairline()
+        }
+    }
+
+    private var goalSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            DSSectionLabel(text: "Objectif course")
+            Toggle(isOn: $hasGoal) {
+                Text("J'ai un objectif").ds(.body)
+            }
+            .padding(.vertical, DSSpace.s)
+            DSHairline()
+
+            if hasGoal {
+                DSFieldRow(label: "Distance") {
+                    Picker("Distance", selection: $distance) {
+                        ForEach(RaceDistance.allCases, id: \.self) { d in
+                            Text(d.label).tag(d)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                }
+                DSFieldRow(label: "Date de la course") {
+                    DatePicker("Date de la course", selection: $raceDate, in: Date()..., displayedComponents: .date)
+                        .labelsHidden()
+                }
+                DSStepperRow(label: "Temps visé, heures", value: $hours, range: 0...6, unit: " h")
+                DSStepperRow(label: "Minutes", value: $minutes, range: 0...59, unit: " min")
+                DSStepperRow(label: "Secondes", value: $seconds, range: 0...55, step: 5, unit: " s")
+
+                if let g = goal {
+                    DSFeasibility(goal: g, vmaKmh: vma)
+                }
+                ForEach(constraints.warnings(), id: \.self) { warning in
+                    DSBanner(text: warning)
                 }
             }
-            .scrollContentBackground(.hidden)
-            .background(Theme.cream)
-            .navigationTitle("Mon plan")
-            .onAppear { prefill() }
         }
     }
 

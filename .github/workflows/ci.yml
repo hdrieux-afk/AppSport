@@ -9,6 +9,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lint:
+    name: Charte de design
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Vérifier la charte et les noms de fichiers
+        run: bash scripts/design_lint.sh
+
   domain-tests:
     name: Domaine sur Linux (rapide)
     runs-on: ubuntu-latest

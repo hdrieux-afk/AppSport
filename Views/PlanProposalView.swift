@@ -10,60 +10,61 @@ struct PlanProposalView: View {
     var body: some View {
         NavigationStack {
             if let draft = store.draft {
-                List {
-                    summarySection(draft)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: DSSpace.xl) {
+                        DSScreenHeader(title: "Plan proposé",
+                                       subtitle: "\(draft.weeks.count) semaines, \(draft.constraints.total) séances par semaine")
 
-                    Section("Volume par semaine, en minutes") {
-                        WeeklyVolumeChart(weeks: draft.weeks)
-                            .padding(.vertical, 4)
-                    }
+                        summary(draft)
 
-                    if let first = draft.weeks.first {
-                        Section("Semaine 1, \(first.phase.label)") {
-                            ForEach(0..<7, id: \.self) { day in
-                                ProposalDayRow(week: first, day: day, startDate: draft.startDate)
+                        VStack(alignment: .leading, spacing: DSSpace.s) {
+                            DSSectionLabel(text: "Volume par semaine, en minutes")
+                            DSVolumeChart(weeks: draft.weeks)
+                        }
+
+                        if let first = draft.weeks.first {
+                            VStack(alignment: .leading, spacing: 0) {
+                                DSSectionLabel(text: "Semaine 1, \(first.phase.label)")
+                                DSHairline()
+                                ForEach(0..<7, id: \.self) { day in
+                                    ProposalDayRow(week: first, day: day, startDate: draft.startDate)
+                                    DSHairline()
+                                }
                             }
                         }
+
+                        VStack(spacing: DSSpace.s) {
+                            Button("Valider le plan") { store.confirmDraft() }
+                                .buttonStyle(.dsPrimary)
+                            Button("Proposer une autre disposition") { store.regenerateDraft() }
+                                .buttonStyle(.dsSecondary)
+                            Button("Modifier mes réponses") { store.discardDraft() }
+                                .buttonStyle(.dsSecondary)
+                            Text("Vous pourrez ensuite modifier, déplacer ou annuler chaque séance.")
+                                .ds(.footnote)
+                                .padding(.top, DSSpace.xs)
+                        }
                     }
-
-                    Section {
-                        Button { store.confirmDraft() } label: {
-                            Text("Valider le plan").frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.borderedProminent)
-
-                        Button { store.regenerateDraft() } label: {
-                            Label("Proposer une autre disposition", systemImage: "arrow.triangle.2.circlepath")
-                                .frame(maxWidth: .infinity)
-                        }
-
-                        Button(role: .cancel) { store.discardDraft() } label: {
-                            Text("Modifier mes réponses").frame(maxWidth: .infinity)
-                        }
-                    } footer: {
-                        Text("Vous pourrez ensuite modifier, déplacer ou annuler chaque séance.")
-                    }
+                    .padding(.horizontal, DSSpace.l)
+                    .padding(.bottom, DSSpace.xxl)
                 }
-                .scrollContentBackground(.hidden)
-                .background(Theme.cream)
-                .navigationTitle("Plan proposé")
+                .background(DSColor.background.ignoresSafeArea())
+                .toolbar(.hidden, for: .navigationBar)
             }
         }
     }
 
-    @ViewBuilder
-    private func summarySection(_ draft: DraftPlan) -> some View {
-        Section("Résumé") {
-            LabeledContent("Durée du plan", value: "\(draft.weeks.count) semaines")
-            LabeledContent("Séances par semaine", value: "\(draft.constraints.total)")
-            LabeledContent("Début", value: draft.startDate.fr(.dateTime.day().month(.wide)))
+    private func summary(_ draft: DraftPlan) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            DSSectionLabel(text: "Résumé")
+            DSLabeledRow(label: "Durée du plan", value: "\(draft.weeks.count) semaines")
+            DSLabeledRow(label: "Séances par semaine", value: "\(draft.constraints.total)")
+            DSLabeledRow(label: "Début", value: draft.startDate.fr(.dateTime.day().month(.wide)))
             if let goal = draft.constraints.goal {
-                FeasibilityBadge(goal: goal, vmaKmh: draft.profile.vmaKmh)
+                DSFeasibility(goal: goal, vmaKmh: draft.profile.vmaKmh)
             }
             ForEach(draft.constraints.warnings(), id: \.self) { warning in
-                Label(warning, systemImage: "exclamationmark.triangle")
-                    .font(.footnote)
-                    .foregroundStyle(Theme.terracotta)
+                DSBanner(text: warning)
             }
         }
     }
@@ -84,21 +85,22 @@ private struct ProposalDayRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DSSpace.m) {
             Text(date.fr(.dateTime.weekday(.abbreviated).day()))
-                .font(.footnote)
-                .foregroundStyle(Theme.muted)
-                .frame(width: 56, alignment: .leading)
+                .ds(.footnote)
+                .frame(width: 64, alignment: .leading)
 
             if sessions.isEmpty {
-                Text("Repos").foregroundStyle(Theme.muted)
+                Text("Repos").ds(.footnote)
+                Spacer()
             } else {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DSSpace.s) {
                     ForEach(sessions) { session in
-                        SessionRow(session: session)
+                        DSSessionRow(session: session)
                     }
                 }
             }
         }
+        .padding(.vertical, DSSpace.m)
     }
 }

@@ -6,7 +6,7 @@ import SwiftUI
 struct TodayView: View {
     @Environment(AppStore.self) private var store
 
-    /// Séances à partir d'aujourd'hui, hors annulées, dans l'ordre.
+    /// Séances à partir d'aujourd'hui, hors annulées et déjà faites, dans l'ordre.
     private var upcoming: [TrainingSession] {
         let start = Calendar.current.startOfDay(for: Date())
         return store.weeks
@@ -17,52 +17,69 @@ struct TodayView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                if let next = upcoming.first {
-                    Text(Calendar.current.isDateInToday(next.date) ? "Aujourd’hui" : "Prochaine séance")
-                        .font(.footnote)
-                        .foregroundStyle(Theme.muted)
+            VStack(alignment: .leading, spacing: DSSpace.xl) {
+                DSScreenHeader(title: "Aujourd’hui")
 
+                if let next = upcoming.first {
                     NavigationLink {
                         SessionDetailView(sessionID: next.id)
                     } label: {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(next.date.fr(.dateTime.weekday(.wide).day().month(.wide)))
-                                .font(.footnote)
-                                .foregroundStyle(Theme.muted)
-                            SessionRow(session: next)
-                        }
-                        .card()
+                        nextCard(next)
                     }
                     .buttonStyle(.plain)
 
-                    Text("À venir")
-                        .font(.footnote)
-                        .foregroundStyle(Theme.muted)
-                        .padding(.top, 8)
-
-                    ForEach(Array(upcoming.dropFirst().prefix(4))) { session in
-                        NavigationLink {
-                            SessionDetailView(sessionID: session.id)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(session.date.fr(.dateTime.weekday(.wide).day().month(.abbreviated)))
-                                    .font(.footnote)
-                                    .foregroundStyle(Theme.muted)
-                                SessionRow(session: session)
+                    VStack(alignment: .leading, spacing: 0) {
+                        DSSectionLabel(text: "À venir")
+                        DSHairline()
+                        ForEach(Array(upcoming.dropFirst().prefix(5))) { session in
+                            NavigationLink {
+                                SessionDetailView(sessionID: session.id)
+                            } label: {
+                                upcomingRow(session)
                             }
-                            .card()
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 } else {
-                    Text("Plan terminé, bravo !")
-                        .font(Theme.title(20))
+                    Text("Plan terminé, bravo !").ds(.title)
                 }
             }
-            .padding()
+            .padding(.horizontal, DSSpace.l)
+            .padding(.bottom, DSSpace.xxl)
         }
-        .background(Theme.cream)
-        .navigationTitle("Aujourd’hui")
+        .background(DSColor.background.ignoresSafeArea())
+        .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private func nextCard(_ session: TrainingSession) -> some View {
+        VStack(alignment: .leading, spacing: DSSpace.s) {
+            Text(Calendar.current.isDateInToday(session.date) ? "Aujourd’hui" : "Prochaine séance")
+                .ds(.footnote)
+            Text(session.kind.title).ds(.display)
+            HStack(alignment: .firstTextBaseline, spacing: DSSpace.s) {
+                Text("\(session.durationMin)").ds(.hero)
+                Text("minutes").ds(.footnote)
+                Spacer()
+                if session.kind.role == .key {
+                    HStack(spacing: DSSpace.xs) {
+                        KeyMarker()
+                        Text("séance clé").ds(.footnote)
+                    }
+                }
+            }
+            Text(session.date.fr(.dateTime.weekday(.wide).day().month(.wide))).ds(.footnote)
+            DSHairline().padding(.top, DSSpace.s)
+        }
+    }
+
+    private func upcomingRow(_ session: TrainingSession) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(session.date.fr(.dateTime.weekday(.wide).day().month(.abbreviated)))
+                .ds(.caption)
+                .padding(.top, DSSpace.m)
+            DSSessionRow(session: session)
+                .padding(.vertical, DSSpace.s)
+            DSHairline()
+        }
     }
 }

@@ -1,8 +1,37 @@
 // SessionSheets.swift
-// Les deux fenêtres qui s'ouvrent depuis une séance : Modifier, et Changer de sport.
+// Les trois fenêtres qui s'ouvrent depuis une séance : Modifier, Changer de sport, Déplacer.
 // Chacune appelle une action du store ; le fichier .fit est régénéré par l'écran de détail.
 
 import SwiftUI
+
+/// Cadre commun des fenêtres : titre en serif, bouton Fermer, fond de la charte.
+private struct SheetFrame<Content: View>: View {
+    @Environment(\.dismiss) private var dismiss
+    let title: String
+    private let content: () -> Content
+
+    init(title: String, @ViewBuilder content: @escaping () -> Content) {
+        self.title = title
+        self.content = content
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: DSSpace.l) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(title).ds(.title)
+                    Spacer()
+                    Button("Fermer") { dismiss() }
+                        .font(DSFont.footnote)
+                        .foregroundStyle(DSColor.textPrimary)
+                }
+                content()
+            }
+            .padding(DSSpace.l)
+        }
+        .background(DSColor.background.ignoresSafeArea())
+    }
+}
 
 struct ModifySessionSheet: View {
     @Environment(AppStore.self) private var store
@@ -19,12 +48,12 @@ struct ModifySessionSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("Durée") {
-                    Stepper("\(duration) min", value: $duration, in: session.kind.durationRange, step: 5)
-                }
-                Section("Intensité") {
+        SheetFrame(title: "Modifier la séance") {
+            VStack(alignment: .leading, spacing: DSSpace.l) {
+                DSStepperRow(label: "Durée", value: $duration, range: session.kind.durationRange, step: 5, unit: " min")
+
+                VStack(alignment: .leading, spacing: DSSpace.s) {
+                    DSSectionLabel(text: "Intensité")
                     Picker("Intensité", selection: $level) {
                         Text("Facile").tag(Level.easy)
                         Text("Prévu").tag(Level.planned)
@@ -32,24 +61,15 @@ struct ModifySessionSheet: View {
                     }
                     .pickerStyle(.segmented)
                 }
-                Section {
-                    Text("Les étapes, les cibles et le fichier .fit sont recalculés automatiquement.")
-                        .font(.footnote)
-                        .foregroundStyle(Theme.muted)
+
+                Text("Les étapes, les cibles et le fichier .fit sont recalculés automatiquement.")
+                    .ds(.footnote)
+
+                Button("Enregistrer") {
+                    store.modify(session.id, durationMin: duration, level: level)
+                    dismiss()
                 }
-            }
-            .navigationTitle("Modifier")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Fermer") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Enregistrer") {
-                        store.modify(session.id, durationMin: duration, level: level)
-                        dismiss()
-                    }
-                }
+                .buttonStyle(.dsPrimary)
             }
         }
         .presentationDetents([.medium])
@@ -63,35 +83,33 @@ struct ChangeSportSheet: View {
     let session: TrainingSession
 
     var body: some View {
-        NavigationStack {
-            List {
+        SheetFrame(title: "Changer de sport") {
+            VStack(alignment: .leading, spacing: 0) {
+                DSHairline()
                 ForEach(SessionKind.choices(venue: store.constraints?.strengthVenue ?? .home), id: \.title) { kind in
                     Button {
                         store.changeSport(session.id, to: kind)
                         dismiss()
                     } label: {
-                        HStack(spacing: 12) {
-                            SessionIcon(kind: kind)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(kind.title)
-                                Text("Durée équivalente : \(equivalentDuration(for: kind)) min")
-                                    .font(.footnote)
-                                    .foregroundStyle(Theme.muted)
+                        VStack(spacing: 0) {
+                            HStack(spacing: DSSpace.m) {
+                                SportGlyph(sport: kind.sport)
+                                VStack(alignment: .leading, spacing: DSSpace.xs) {
+                                    Text(kind.title).ds(.headline)
+                                    Text("Durée équivalente : \(equivalentDuration(for: kind)) min").ds(.footnote)
+                                }
+                                Spacer()
+                                if kind == session.kind {
+                                    Text("Actuel").ds(.caption)
+                                }
                             }
-                            Spacer()
-                            if kind == session.kind {
-                                Text("Actuel").font(.footnote).foregroundStyle(Theme.muted)
-                            }
+                            .padding(.vertical, DSSpace.m)
+                            DSHairline()
                         }
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                     .disabled(kind == session.kind)
-                }
-            }
-            .navigationTitle("Changer de sport")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Fermer") { dismiss() }
                 }
             }
         }
@@ -114,19 +132,13 @@ struct MoveSessionSheet: View {
     let session: TrainingSession
 
     var body: some View {
-        NavigationStack {
-            List {
+        SheetFrame(title: "Déplacer la séance") {
+            VStack(alignment: .leading, spacing: 0) {
+                DSHairline()
                 if let start = store.weekStart(of: session.id) {
                     ForEach(0..<7, id: \.self) { day in
                         dayRow(day: day, weekStart: start)
                     }
-                }
-            }
-            .navigationTitle("Déplacer")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Fermer") { dismiss() }
                 }
             }
         }
@@ -140,17 +152,24 @@ struct MoveSessionSheet: View {
             store.move(session.id, toDay: day)
             dismiss()
         } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(date.fr(.dateTime.weekday(.wide).day().month(.wide)))
-                if isCurrent {
-                    Text("Jour actuel").font(.footnote).foregroundStyle(Theme.muted)
-                } else if !issues.isEmpty {
-                    Text("Attention : " + issues.map { $0.message }.joined(separator: ", "))
-                        .font(.footnote)
-                        .foregroundStyle(Theme.terracotta)
+            VStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: DSSpace.xs) {
+                    Text(date.fr(.dateTime.weekday(.wide).day().month(.wide))).ds(.headline)
+                    if isCurrent {
+                        Text("Jour actuel").ds(.footnote)
+                    } else if !issues.isEmpty {
+                        Text("Attention : " + issues.map { $0.message }.joined(separator: ", "))
+                            .font(DSFont.footnote)
+                            .foregroundStyle(DSColor.accentText)
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, DSSpace.m)
+                DSHairline()
             }
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .disabled(isCurrent)
     }
 }
