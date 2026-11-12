@@ -1,4 +1,4 @@
-// Components.swift
+// DSComponents.swift
 // Composants de base, tous construits uniquement avec les tokens de Tokens.swift.
 
 import SwiftUI
