@@ -105,6 +105,10 @@ struct PlanConstraints: Codable {
     var currentLongRunMinutes: Int = 60         // sortie de course la plus longue de ces 4 dernières semaines
     var layoutSeed: Int = 0                     // fait varier la disposition proposée (bouton "Régénérer")
 
+    enum CodingKeys: String, CodingKey {
+        case runs, bikes, strengths, strengthVenue, unavailableWeekdays, goal, currentLongRunMinutes, layoutSeed
+    }
+
     var total: Int { runs + bikes + strengths }
     var availableDays: [Int] { (0..<7).filter { !unavailableWeekdays.contains($0) } }
     var isValid: Bool { (2...7).contains(total) && total <= availableDays.count }
@@ -527,3 +531,44 @@ extension TrainingSession {
 // let plan = PlanGenerator.generatePlan(constraints: constraints, start: start)
 // let verdict = assessFeasibility(race, vmaKmh: profile.vmaKmh)   // (.realistic, 0.889)
 // let built = plan[0].sessions[0].render(profile: profile, goal: race)
+
+extension PlanConstraints {
+    /// Lecture tolérante : les champs ajoutés après coup reçoivent leur valeur par défaut.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        runs = try c.decode(Int.self, forKey: .runs)
+        bikes = try c.decode(Int.self, forKey: .bikes)
+        strengths = try c.decode(Int.self, forKey: .strengths)
+        strengthVenue = try c.decodeIfPresent(Venue.self, forKey: .strengthVenue) ?? .home
+        unavailableWeekdays = try c.decodeIfPresent(Set<Int>.self, forKey: .unavailableWeekdays) ?? []
+        goal = try c.decodeIfPresent(RaceGoal.self, forKey: .goal)
+        currentLongRunMinutes = try c.decodeIfPresent(Int.self, forKey: .currentLongRunMinutes) ?? 60
+        layoutSeed = try c.decodeIfPresent(Int.self, forKey: .layoutSeed) ?? 0
+    }
+}
+
+extension PlanGenerator {
+    /// Replanifie les semaines à venir après un changement de profil ou d'objectif.
+    /// - les semaines entièrement passées sont conservées telles quelles
+    /// - dans les semaines à venir, les séances verrouillées (modifiées à la main) ou faites sont conservées
+    ///   et le reste est recalculé
+    static func replan(weeks: [PlannedWeek], constraints c: PlanConstraints, startDate: Date,
+                       today: Date, calendar: Calendar = .current) -> [PlannedWeek] {
+        let tl = timeline(for: c, start: startDate, calendar: calendar)
+        let startOfToday = calendar.startOfDay(for: today)
+        var rebuilt: [PlannedWeek] = []
+        for w in 0..<tl.totalWeeks {
+            let weekStart = calendar.date(byAdding: .weekOfYear, value: w, to: startDate) ?? startDate
+            let weekEnd = calendar.date(byAdding: .day, value: 7, to: weekStart) ?? weekStart
+            let existing: PlannedWeek? = weeks.indices.contains(w) ? weeks[w] : nil
+            if let past = existing, weekEnd <= startOfToday {
+                rebuilt.append(past)
+                continue
+            }
+            let kept = existing?.sessions.filter { $0.isLocked || $0.isDone } ?? []
+            rebuilt.append(generateWeek(week: w, weekStart: weekStart, constraints: c, timeline: tl,
+                                        locked: kept, seed: c.layoutSeed, calendar: calendar))
+        }
+        return rebuilt
+    }
+}

@@ -124,6 +124,7 @@ struct SportGlyph: View {
             .font(.system(size: size, weight: .light))
             .foregroundStyle(DSColor.textPrimary)
             .frame(width: size * 1.6, height: size * 1.6)
+            .accessibilityLabel(sport.label)
     }
 }
 
@@ -133,6 +134,7 @@ struct KeyMarker: View {
         Circle()
             .fill(DSColor.accent)
             .frame(width: 8, height: 8)
+            .accessibilityLabel("Séance clé")
     }
 }
 
@@ -147,6 +149,7 @@ struct DoneMark: View {
             .frame(width: size, height: size)
             .background(DSColor.accent)
             .clipShape(RoundedRectangle(cornerRadius: DSRadius.small))
+            .accessibilityLabel("Séance faite")
     }
 }
 
@@ -165,5 +168,7 @@ struct ProgressRing: View {
                 .rotationEffect(.degrees(-90))
         }
         .frame(width: size, height: size)
+        .accessibilityLabel("Progression")
+        .accessibilityValue("\(Int(min(max(value, 0), 1) * 100)) pour cent")
     }
 }

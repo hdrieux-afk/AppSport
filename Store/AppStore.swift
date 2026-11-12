@@ -148,23 +148,7 @@ final class AppStore {
     /// à venir les séances verrouillées (modifiées à la main) ou faites sont conservées.
     func replanFromToday() {
         guard let constraints = constraints else { return }
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let timeline = PlanGenerator.timeline(for: constraints, start: startDate)
-        var rebuilt: [PlannedWeek] = []
-        for w in 0..<timeline.totalWeeks {
-            let start = weekStart(index: w)
-            let end = calendar.date(byAdding: .day, value: 7, to: start) ?? start
-            let existing: PlannedWeek? = weeks.indices.contains(w) ? weeks[w] : nil
-            if let past = existing, end <= today {
-                rebuilt.append(past)
-                continue
-            }
-            let kept = existing?.sessions.filter { $0.isLocked || $0.isDone } ?? []
-            rebuilt.append(PlanGenerator.generateWeek(week: w, weekStart: start, constraints: constraints,
-                                                      timeline: timeline, locked: kept, seed: constraints.layoutSeed))
-        }
-        weeks = rebuilt
+        weeks = PlanGenerator.replan(weeks: weeks, constraints: constraints, startDate: startDate, today: Date())
         save()
     }
 

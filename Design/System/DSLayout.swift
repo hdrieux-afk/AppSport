@@ -39,6 +39,7 @@ struct DSSessionRow: View {
             if session.isDone { DoneMark() }
         }
         .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
     }
 
     private var isKey: Bool {

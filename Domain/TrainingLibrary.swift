@@ -18,6 +18,8 @@ struct AthleteProfile: Codable {
     var vmaKmh: Double
     var maxHR: Int
     var hasBand: Bool   // élastique disponible à la maison
+
+    enum CodingKeys: String, CodingKey { case vmaKmh, maxHR, hasBand }
 }
 
 struct Zones {
@@ -465,6 +467,10 @@ struct TrainingSession: Identifiable, Codable {
     var fitRevision = 0         // incrémentée à chaque changement qui touche le fichier
     var isDone = false          // séance marquée comme faite par l'utilisateur
 
+    enum CodingKeys: String, CodingKey {
+        case id, date, kind, variant, durationMin, level, status, isLocked, fitRevision, isDone
+    }
+
     var isExportable: Bool { kind.sport != .strength && status != .cancelled }
 
     private mutating func bumpRevision() {
@@ -537,3 +543,32 @@ struct TrainingSession: Identifiable, Codable {
 // session.cancel()                                       // Annuler
 //
 // let gym = StrengthLibrary.build(.pull, venue: .home, durationMin: 45, level: .planned, profile: profile)
+
+// MARK: - Lecture tolérante des sauvegardes
+// Une sauvegarde faite par une ancienne version de l'app (sans les champs ajoutés depuis) reste lisible :
+// les champs absents reçoivent leur valeur par défaut, au lieu de faire disparaître le plan.
+
+extension TrainingSession {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        date = try c.decode(Date.self, forKey: .date)
+        kind = try c.decode(SessionKind.self, forKey: .kind)
+        variant = try c.decodeIfPresent(RunVariant.self, forKey: .variant)
+        durationMin = try c.decode(Int.self, forKey: .durationMin)
+        level = try c.decodeIfPresent(Level.self, forKey: .level) ?? .planned
+        status = try c.decodeIfPresent(SessionStatus.self, forKey: .status) ?? .planned
+        isLocked = try c.decodeIfPresent(Bool.self, forKey: .isLocked) ?? false
+        fitRevision = try c.decodeIfPresent(Int.self, forKey: .fitRevision) ?? 0
+        isDone = try c.decodeIfPresent(Bool.self, forKey: .isDone) ?? false
+    }
+}
+
+extension AthleteProfile {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        vmaKmh = try c.decode(Double.self, forKey: .vmaKmh)
+        maxHR = try c.decode(Int.self, forKey: .maxHR)
+        hasBand = try c.decodeIfPresent(Bool.self, forKey: .hasBand) ?? false
+    }
+}
