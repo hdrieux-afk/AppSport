@@ -28,15 +28,7 @@ struct RootView: View {
                 OnboardingView()
             }
         }
-        .onAppear {
-            store.attach(context)
-            let args = ProcessInfo.processInfo.arguments
-            if args.contains("-resetPlan") { store.reset() }
-            if args.contains("-demo") && store.weeks.isEmpty {
-                store.createDemoPlan()
-            } else if args.contains("-demoDraft") && store.weeks.isEmpty && store.draft == nil {
-                store.createDemoDraft()
-            }
-        }
+        // onAppear se répète à chaque changement d'écran : attach() est sans effet après le premier appel.
+        .onAppear { store.attach(context) }
     }
 }

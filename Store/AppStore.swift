@@ -54,7 +54,20 @@ final class AppStore {
             weeks = (try? decoder.decode([PlannedWeek].self, from: existing.weeksData)) ?? []
             startDate = existing.startDate
         }
+        applyLaunchArguments()
         isLoaded = true
+    }
+
+    /// Arguments de lancement de l'intégration continue, pour obtenir des écrans reproductibles.
+    /// Appelé une seule fois, depuis attach() : ne jamais le déclencher depuis onAppear, qui se répète.
+    private func applyLaunchArguments() {
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("-resetPlan") { reset() }
+        if args.contains("-demo") && weeks.isEmpty {
+            createDemoPlan()
+        } else if args.contains("-demoDraft") && weeks.isEmpty && draft == nil {
+            createDemoDraft()
+        }
     }
 
     // MARK: - Proposition de plan, puis validation
